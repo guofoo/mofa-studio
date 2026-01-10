@@ -552,6 +552,112 @@ let app = self.app_registry.find_by_id("my-app");
 
 ---
 
+## NextFrame Animation Pattern
+
+For smooth animations without timers, use the `NextFrame` event pattern. This is used for copy button feedback animations.
+
+### Basic Pattern
+
+```rust
+// State variables
+#[rust]
+flash_active: bool,
+#[rust]
+flash_start: f64,  // Absolute start time (0.0 = capture on first frame)
+
+// Click handler - trigger animation
+Hit::FingerUp(_) => {
+    self.flash_active = true;
+    self.flash_start = 0.0;  // Sentinel value
+    cx.new_next_frame();
+    self.view.redraw(cx);
+}
+
+// NextFrame handler - animate
+if let Event::NextFrame(nf) = event {
+    if self.flash_active {
+        // Capture start time on first frame
+        if self.flash_start == 0.0 {
+            self.flash_start = nf.time;
+        }
+        let elapsed = nf.time - self.flash_start;
+
+        // Animation logic here...
+
+        if self.flash_active {
+            cx.new_next_frame();  // Continue animation
+        }
+    }
+}
+```
+
+### Color Gradient Animation
+
+Multi-stop color gradient with smoothstep fade:
+
+```rust
+draw_bg: {
+    instance copied: 0.0
+    instance dark_mode: 0.0
+    fn pixel(self) -> vec4 {
+        // Light theme: Green → Teal → Blue → Gray
+        let gray_light = (BORDER);
+        let blue_light = vec4(0.231, 0.510, 0.965, 1.0);
+        let teal_light = vec4(0.078, 0.722, 0.651, 1.0);
+        let green_light = vec4(0.133, 0.773, 0.373, 1.0);
+
+        // Dark theme: Bright Green → Cyan → Purple → Slate
+        let gray_dark = vec4(0.334, 0.371, 0.451, 1.0);
+        let purple_dark = vec4(0.639, 0.380, 0.957, 1.0);
+        let cyan_dark = vec4(0.133, 0.831, 0.894, 1.0);
+        let green_dark = vec4(0.290, 0.949, 0.424, 1.0);
+
+        // Select colors based on dark mode
+        let gray = mix(gray_light, gray_dark, self.dark_mode);
+        let c1 = mix(blue_light, purple_dark, self.dark_mode);
+        let c2 = mix(teal_light, cyan_dark, self.dark_mode);
+        let c3 = mix(green_light, green_dark, self.dark_mode);
+
+        // Multi-stop gradient: copied 1.0→0.66→0.33→0.0
+        let t = self.copied;
+        let bg_color = mix(
+            mix(mix(gray, c1, clamp(t * 3.0, 0.0, 1.0)),
+                c2, clamp((t - 0.33) * 3.0, 0.0, 1.0)),
+            c3, clamp((t - 0.66) * 3.0, 0.0, 1.0)
+        );
+        // ... draw with bg_color
+    }
+}
+```
+
+### Smoothstep Fade
+
+```rust
+// Hold for 0.3s, then fade over 0.5s
+let fade_start = 0.3;
+let fade_duration = 0.5;
+
+if elapsed >= fade_start + fade_duration {
+    // Animation complete
+    self.flash_active = false;
+} else if elapsed >= fade_start {
+    // Smoothstep: 3t² - 2t³ for smooth ease-out
+    let t = (elapsed - fade_start) / fade_duration;
+    let smooth_t = t * t * (3.0 - 2.0 * t);
+    let value = 1.0 - smooth_t;
+    // Apply interpolated value to shader instance
+}
+```
+
+### Key Points
+
+- `nf.time` is **absolute time**, not delta - track start time separately
+- Use `cx.new_next_frame()` to request next frame (not `request_next_frame`)
+- Animation is self-terminating: stops requesting frames when complete
+- Use `smoothstep()` or manual `3t² - 2t³` for smooth easing
+
+---
+
 ## Important Notes
 
 ### Hex Colors in Shaders
