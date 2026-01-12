@@ -229,11 +229,27 @@ impl DataflowParser {
         let mut inputs = Vec::new();
         if let Some(inputs_map) = value.get("inputs").and_then(|i| i.as_mapping()) {
             for (key, val) in inputs_map {
-                if let (Some(id), Some(source)) = (key.as_str(), val.as_str()) {
-                    inputs.push(InputDef {
-                        id: id.to_string(),
-                        source: source.to_string(),
-                    });
+                if let Some(id) = key.as_str() {
+                    // Handle both string format and nested mapping format
+                    let source = if let Some(source_str) = val.as_str() {
+                        // Simple string format: "node/output"
+                        Some(source_str.to_string())
+                    } else if let Some(mapping) = val.as_mapping() {
+                        // Nested format: { source: "node/output", queue_size: ... }
+                        mapping
+                            .get("source")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string())
+                    } else {
+                        None
+                    };
+
+                    if let Some(source) = source {
+                        inputs.push(InputDef {
+                            id: id.to_string(),
+                            source,
+                        });
+                    }
                 }
             }
         }

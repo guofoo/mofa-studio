@@ -24,11 +24,38 @@ cd ~/Desktop/code/mofa-org/hackerweek/nix-mofa/mofa-studio
 
 ## 3. 一键启动
 
+### 方式一：使用启动脚本（推荐）
+
+```bash
+./run.sh
+```
+
+该脚本会自动处理 Nix 实验性功能参数，无需任何配置。
+
+### 方式二：直接使用 Nix 命令
+
 ```bash
 nix --extra-experimental-features 'nix-command flakes' run .
 ```
 
-该命令会：
+### 方式三：启用 Flakes 后使用简短命令
+
+若希望直接使用 `nix run .`，可先启用实验性功能：
+
+```bash
+mkdir -p ~/.config/nix
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
+
+之后即可直接执行：
+
+```bash
+nix run .
+```
+
+## 4. 执行流程
+
+以上任意启动方式都会：
 
 1. 自动安装/缓存 Rust toolchain、Node.js、CMake、PortAudio 等编译依赖。
 2. 在 `./.nix-mofa` 下 `cargo install` 固定版本的 `dora-cli`。
@@ -60,7 +87,7 @@ MOFA_SKIP_BOOTSTRAP=1 nix --extra-experimental-features 'nix-command flakes' run
 
 > **提示**：如果之前的 venv 已经安装了 `dora-rs 0.3.13+`，请至少执行一次不带 `MOFA_SKIP_BOOTSTRAP=1` 的 `nix run .`（或手动 `source .venv-mofa/bin/activate && pip install --upgrade --force-reinstall 'dora-rs==0.3.12'`）以确保协议版本一致。
 
-## 4. 开发调试
+## 5. 开发调试
 
 若需进入带齐依赖的开发 shell（含 Rust/Python/Node/CMake/pkg-config/PortAudio 等），可执行：
 
@@ -72,4 +99,26 @@ nix --extra-experimental-features 'nix-command flakes' develop .
 
 ---
 
-发生异常时，日志会写在 `./out/`（`dora-daemon.txt` / `dora-coordinator.txt`）。如需重新跑首次安装，可删除 `.nix-mofa` 与 `.venv-mofa` 目录后再执行 `nix run .`。
+## 6. 常见问题
+
+### 虚拟环境路径错误
+
+若移动了项目目录，Python 虚拟环境中的路径会失效，导致 Python 节点无法启动。解决方法：
+
+```bash
+rm -rf .venv-mofa
+./run.sh  # 会自动重新创建虚拟环境
+```
+
+### 清理环境
+
+如需完全清理并重新安装：
+
+```bash
+rm -rf .nix-mofa .venv-mofa
+./run.sh
+```
+
+### 日志查看
+
+发生异常时，日志会写在 `./out/`（`dora-daemon.txt` / `dora-coordinator.txt`）。

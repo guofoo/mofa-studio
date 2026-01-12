@@ -43,6 +43,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
 
 ## 🚀 Quick Start
 
+> **Using Nix?** See [DEPLOY_WITH_NIX.md](DEPLOY_WITH_NIX.md) for automated deployment with `./run.sh`
+
 ### Prerequisites
 
 - **Rust** 1.70+ (2021 edition)
