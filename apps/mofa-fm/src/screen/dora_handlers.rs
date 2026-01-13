@@ -224,14 +224,17 @@ impl MoFaFMScreen {
             }
         }
 
-        // Update audio buffer level in mofa_hero (from audio player)
-        let (is_playing, active_idx, waveform_data) = if let Some(ref player) = self.audio_player {
-            let buffer_pct = player.buffer_fill_percentage() / 100.0;
-            self.view.mofa_hero(ids!(left_column.mofa_hero)).set_buffer_level(cx, buffer_pct);
-            (player.is_playing(), player.current_participant_idx(), player.get_waveform_data())
+        // Update audio buffer level in audio panel (from audio player)
+        // Extract all data first to avoid borrow conflicts with update_buffer_level
+        let (buffer_pct, is_playing, active_idx, waveform_data) = if let Some(ref player) = self.audio_player {
+            let pct = player.buffer_fill_percentage() / 100.0;
+            (Some(pct), player.is_playing(), player.current_participant_idx(), player.get_waveform_data())
         } else {
-            (false, None, Vec::new())
+            (None, false, None, Vec::new())
         };
+        if let Some(pct) = buffer_pct {
+            self.update_buffer_level(cx, pct);
+        }
 
         {
             // Calculate band levels from waveform data (same as conference-dashboard)

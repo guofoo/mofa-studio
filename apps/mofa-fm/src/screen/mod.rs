@@ -509,6 +509,9 @@ impl StateChangeListener for MoFaFMScreenRef {
             inner.view.view(ids!(left_column.audio_container.aec_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });
+            inner.view.view(ids!(left_column.audio_container.buffer_container)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+            });
             inner.view.view(ids!(left_column.audio_container.device_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });

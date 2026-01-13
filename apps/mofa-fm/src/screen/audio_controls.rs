@@ -3,6 +3,7 @@
 //! Handles audio device selection, mic monitoring, and level visualization.
 
 use makepad_widgets::*;
+use mofa_settings::data::Preferences;
 
 use super::MoFaFMScreen;
 
@@ -10,6 +11,9 @@ impl MoFaFMScreen {
     /// Initialize audio manager and populate device dropdowns
     pub(super) fn init_audio(&mut self, cx: &mut Cx) {
         let mut audio_manager = crate::audio::AudioManager::new();
+
+        // Load saved preferences
+        let prefs = Preferences::load();
 
         // Get input devices
         let input_devices = audio_manager.get_input_devices();
@@ -33,22 +37,35 @@ impl MoFaFMScreen {
         }).collect();
         self.output_devices = output_devices.iter().map(|d| d.name.clone()).collect();
 
-        // Populate input dropdown
+        // Populate input dropdown and restore saved selection
         if !input_labels.is_empty() {
             let dropdown = self.view.drop_down(ids!(audio_container.device_container.device_selectors.input_device_group.input_device_dropdown));
             dropdown.set_labels(cx, input_labels);
-            dropdown.set_selected_item(cx, 0);
+
+            // Try to select saved device, fall back to default (index 0)
+            let selected_idx = prefs.audio_input_device
+                .as_ref()
+                .and_then(|saved| self.input_devices.iter().position(|d| d == saved))
+                .unwrap_or(0);
+            dropdown.set_selected_item(cx, selected_idx);
         }
 
-        // Populate output dropdown
+        // Populate output dropdown and restore saved selection
         if !output_labels.is_empty() {
             let dropdown = self.view.drop_down(ids!(audio_container.device_container.device_selectors.output_device_group.output_device_dropdown));
             dropdown.set_labels(cx, output_labels);
-            dropdown.set_selected_item(cx, 0);
+
+            // Try to select saved device, fall back to default (index 0)
+            let selected_idx = prefs.audio_output_device
+                .as_ref()
+                .and_then(|saved| self.output_devices.iter().position(|d| d == saved))
+                .unwrap_or(0);
+            dropdown.set_selected_item(cx, selected_idx);
         }
 
-        // Start mic monitoring with default device
-        if let Err(e) = audio_manager.start_mic_monitoring(None) {
+        // Start mic monitoring with saved device or default
+        let input_device = prefs.audio_input_device.as_deref();
+        if let Err(e) = audio_manager.start_mic_monitoring(input_device) {
             eprintln!("Failed to start mic monitoring: {}", e);
         }
 
@@ -133,6 +150,43 @@ impl MoFaFMScreen {
         self.view.redraw(cx);
     }
 
+    /// Update buffer level LEDs based on audio buffer fill percentage
+    pub(super) fn update_buffer_level(&mut self, cx: &mut Cx, level: f64) {
+        // Map level (0.0-1.0) to 5 LEDs
+        let active_leds = (level * 5.0).ceil() as u32;
+
+        // Colors: blue for normal, yellow for warning, red for critical
+        let blue = vec4(0.23, 0.51, 0.97, 1.0);  // Normal buffer level
+        let yellow = vec4(0.918, 0.702, 0.031, 1.0);  // Warning (80%+)
+        let red = vec4(0.937, 0.267, 0.267, 1.0);  // Critical (95%+)
+        let off = vec4(0.886, 0.910, 0.941, 1.0);  // LED off
+
+        // LED colors based on level thresholds
+        let base_color = if level >= 0.95 { red } else if level >= 0.8 { yellow } else { blue };
+
+        let led_ids = [
+            ids!(audio_container.buffer_container.buffer_group.buffer_meter.buffer_led_1),
+            ids!(audio_container.buffer_container.buffer_group.buffer_meter.buffer_led_2),
+            ids!(audio_container.buffer_container.buffer_group.buffer_meter.buffer_led_3),
+            ids!(audio_container.buffer_container.buffer_group.buffer_meter.buffer_led_4),
+            ids!(audio_container.buffer_container.buffer_group.buffer_meter.buffer_led_5),
+        ];
+
+        for (i, led_id) in led_ids.iter().enumerate() {
+            let is_active = (i + 1) as u32 <= active_leds;
+            let color = if is_active { base_color } else { off };
+            self.view.view(led_id.clone()).apply_over(cx, live! {
+                draw_bg: { color: (color) }
+            });
+        }
+
+        // Update percentage label
+        let pct_text = format!("{}%", (level * 100.0) as u32);
+        self.view.label(ids!(audio_container.buffer_container.buffer_group.buffer_pct)).set_text(cx, &pct_text);
+
+        self.view.redraw(cx);
+    }
+
     /// Select input device for mic monitoring
     pub(super) fn select_input_device(&mut self, cx: &mut Cx, device_name: &str) {
         if let Some(ref mut audio_manager) = self.audio_manager {
@@ -140,6 +194,14 @@ impl MoFaFMScreen {
                 eprintln!("Failed to set input device '{}': {}", device_name, e);
             }
         }
+
+        // Save preference
+        let mut prefs = Preferences::load();
+        prefs.audio_input_device = Some(device_name.to_string());
+        if let Err(e) = prefs.save() {
+            eprintln!("Failed to save audio input preference: {}", e);
+        }
+
         self.view.redraw(cx);
     }
 
@@ -147,6 +209,13 @@ impl MoFaFMScreen {
     pub(super) fn select_output_device(&mut self, device_name: &str) {
         if let Some(ref mut audio_manager) = self.audio_manager {
             audio_manager.set_output_device(device_name);
+        }
+
+        // Save preference
+        let mut prefs = Preferences::load();
+        prefs.audio_output_device = Some(device_name.to_string());
+        if let Err(e) = prefs.save() {
+            eprintln!("Failed to save audio output preference: {}", e);
         }
     }
 }

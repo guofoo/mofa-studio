@@ -375,6 +375,70 @@ live_design! {
                     }
                 }
 
+                // Audio buffer indicator container
+                buffer_container = <RoundedView> {
+                    width: Fit, height: Fit
+                    padding: (PANEL_PADDING)
+                    show_bg: true
+                    draw_bg: {
+                        instance dark_mode: 0.0
+                        border_radius: (PANEL_RADIUS)
+                        border_size: 1.0
+                        fn pixel(self) -> vec4 {
+                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                            sdf.box(0., 0., self.rect_size.x, self.rect_size.y, self.border_radius);
+                            let bg = mix((PANEL_BG), (PANEL_BG_DARK), self.dark_mode);
+                            let border = mix((BORDER), (SLATE_600), self.dark_mode);
+                            sdf.fill(bg);
+                            sdf.stroke(border, self.border_size);
+                            return sdf.result;
+                        }
+                    }
+
+                    buffer_group = <View> {
+                        width: Fit, height: Fit
+                        flow: Right
+                        spacing: 8
+                        align: {y: 0.5}
+
+                        buffer_label = <Label> {
+                            draw_text: {
+                                instance dark_mode: 0.0
+                                text_style: <FONT_MEDIUM>{ font_size: 10.0 }
+                                fn get_color(self) -> vec4 {
+                                    return mix((GRAY_700), (TEXT_SECONDARY_DARK), self.dark_mode);
+                                }
+                            }
+                            text: "Buffer"
+                        }
+
+                        buffer_meter = <View> {
+                            width: Fit, height: Fit
+                            flow: Right
+                            spacing: 3
+                            align: {y: 0.5}
+                            padding: {top: 2, bottom: 2}
+
+                            buffer_led_1 = <RoundedView> { width: 8, height: 14, draw_bg: { color: (SLATE_200), border_radius: 2.0 } }
+                            buffer_led_2 = <RoundedView> { width: 8, height: 14, draw_bg: { color: (SLATE_200), border_radius: 2.0 } }
+                            buffer_led_3 = <RoundedView> { width: 8, height: 14, draw_bg: { color: (SLATE_200), border_radius: 2.0 } }
+                            buffer_led_4 = <RoundedView> { width: 8, height: 14, draw_bg: { color: (SLATE_200), border_radius: 2.0 } }
+                            buffer_led_5 = <RoundedView> { width: 8, height: 14, draw_bg: { color: (SLATE_200), border_radius: 2.0 } }
+                        }
+
+                        buffer_pct = <Label> {
+                            draw_text: {
+                                instance dark_mode: 0.0
+                                text_style: <FONT_REGULAR>{ font_size: 10.0 }
+                                fn get_color(self) -> vec4 {
+                                    return mix((GRAY_500), (TEXT_SECONDARY_DARK), self.dark_mode);
+                                }
+                            }
+                            text: "0%"
+                        }
+                    }
+                }
+
                 // Device selectors container - fills remaining space
                 device_container = <RoundedView> {
                     width: Fill, height: Fit
@@ -651,21 +715,49 @@ live_design! {
                                 width: Fit, height: 35
                                 padding: {left: 16, right: 16}
                                 text: "Send"
+
+                                animator: {
+                                    hover = {
+                                        default: off,
+                                        off = {
+                                            from: {all: Forward {duration: 0.15}}
+                                            apply: { draw_bg: {hover: 0.0} }
+                                        }
+                                        on = {
+                                            from: {all: Forward {duration: 0.15}}
+                                            apply: { draw_bg: {hover: 1.0} }
+                                        }
+                                    }
+                                    pressed = {
+                                        default: off,
+                                        off = {
+                                            from: {all: Forward {duration: 0.1}}
+                                            apply: { draw_bg: {pressed: 0.0} }
+                                        }
+                                        on = {
+                                            from: {all: Forward {duration: 0.1}}
+                                            apply: { draw_bg: {pressed: 1.0} }
+                                        }
+                                    }
+                                }
+
                                 draw_text: {
                                     color: (WHITE)
                                     text_style: <FONT_SEMIBOLD>{ font_size: 11.0 }
                                 }
                                 draw_bg: {
-                                    instance color: (ACCENT_BLUE)
-                                    instance color_hover: (BLUE_700)
+                                    instance hover: 0.0
+                                    instance pressed: 0.0
                                     border_radius: 4.0
-                                    fn get_color(self) -> vec4 {
-                                        return mix(self.color, self.color_hover, self.hover);
-                                    }
                                     fn pixel(self) -> vec4 {
                                         let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                        let color = mix(
+                                            mix((ACCENT_BLUE), (BLUE_600), self.hover),
+                                            (BLUE_700),
+                                            self.pressed
+                                        );
                                         sdf.box(0., 0., self.rect_size.x, self.rect_size.y, self.border_radius);
-                                        sdf.fill(self.get_color());
+                                        sdf.fill(color);
                                         return sdf.result;
                                     }
                                 }
@@ -675,6 +767,32 @@ live_design! {
                                 width: Fit, height: 35
                                 padding: {left: 16, right: 16}
                                 text: "Reset"
+
+                                animator: {
+                                    hover = {
+                                        default: off,
+                                        off = {
+                                            from: {all: Forward {duration: 0.15}}
+                                            apply: { draw_bg: {hover: 0.0} }
+                                        }
+                                        on = {
+                                            from: {all: Forward {duration: 0.15}}
+                                            apply: { draw_bg: {hover: 1.0} }
+                                        }
+                                    }
+                                    pressed = {
+                                        default: off,
+                                        off = {
+                                            from: {all: Forward {duration: 0.1}}
+                                            apply: { draw_bg: {pressed: 0.0} }
+                                        }
+                                        on = {
+                                            from: {all: Forward {duration: 0.1}}
+                                            apply: { draw_bg: {pressed: 1.0} }
+                                        }
+                                    }
+                                }
+
                                 draw_text: {
                                     instance dark_mode: 0.0
                                     text_style: <FONT_MEDIUM>{ font_size: 11.0 }
@@ -683,6 +801,8 @@ live_design! {
                                     }
                                 }
                                 draw_bg: {
+                                    instance hover: 0.0
+                                    instance pressed: 0.0
                                     instance dark_mode: 0.0
                                     border_radius: 4.0
                                     fn pixel(self) -> vec4 {
@@ -690,7 +810,9 @@ live_design! {
                                         sdf.box(0., 0., self.rect_size.x, self.rect_size.y, self.border_radius);
                                         let base = mix((HOVER_BG), (SLATE_600), self.dark_mode);
                                         let hover_color = mix((SLATE_200), (SLATE_500), self.dark_mode);
-                                        sdf.fill(mix(base, hover_color, self.hover));
+                                        let pressed_color = mix((SLATE_300), (SLATE_400), self.dark_mode);
+                                        let color = mix(mix(base, hover_color, self.hover), pressed_color, self.pressed);
+                                        sdf.fill(color);
                                         return sdf.result;
                                     }
                                 }
@@ -744,6 +866,32 @@ live_design! {
                     width: Fit, height: Fit
                     padding: {left: 8, right: 8, top: 6, bottom: 6}
                     text: ">"
+
+                    animator: {
+                        hover = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 1.0} }
+                            }
+                        }
+                        pressed = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 1.0} }
+                            }
+                        }
+                    }
+
                     draw_text: {
                         instance dark_mode: 0.0
                         text_style: <FONT_BOLD>{ font_size: 11.0 }
@@ -752,6 +900,8 @@ live_design! {
                         }
                     }
                     draw_bg: {
+                        instance hover: 0.0
+                        instance pressed: 0.0
                         instance dark_mode: 0.0
                         border_radius: 4.0
                         fn pixel(self) -> vec4 {
@@ -759,7 +909,9 @@ live_design! {
                             sdf.box(0., 0., self.rect_size.x, self.rect_size.y, self.border_radius);
                             let base = mix((SLATE_200), (SLATE_600), self.dark_mode);
                             let hover_color = mix((SLATE_300), (SLATE_500), self.dark_mode);
-                            sdf.fill(mix(base, hover_color, self.hover));
+                            let pressed_color = mix((SLATE_400), (SLATE_400), self.dark_mode);
+                            let color = mix(mix(base, hover_color, self.hover), pressed_color, self.pressed);
+                            sdf.fill(color);
                             return sdf.result;
                         }
                     }
