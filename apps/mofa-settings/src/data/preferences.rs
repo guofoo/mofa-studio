@@ -13,6 +13,10 @@ pub struct Preferences {
     pub default_chat_provider: Option<ProviderId>,
     pub default_tts_provider: Option<ProviderId>,
     pub default_asr_provider: Option<ProviderId>,
+    #[serde(default)]
+    pub audio_input_device: Option<String>,
+    #[serde(default)]
+    pub audio_output_device: Option<String>,
     /// Dark mode preference (true = dark, false = light)
     #[serde(default)]
     pub dark_mode: bool,

@@ -46,3 +46,7 @@ __pycache__/
 dist/
 build/
 setup.py
+
+# Local env dirs
+.venv-mofa/
+.nix-mofa/
