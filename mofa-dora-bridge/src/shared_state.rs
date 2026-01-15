@@ -275,19 +275,15 @@ impl SharedDoraState {
     /// Create new shared state with default capacities
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            chat: ChatState::new(500),      // 500 max chat messages
-            audio: AudioState::new(100),    // 100 max pending audio chunks
-            logs: DirtyVec::new(1000),      // 1000 max log entries
+            chat: ChatState::new(500),   // 500 max chat messages
+            audio: AudioState::new(100), // 100 max pending audio chunks
+            logs: DirtyVec::new(1000),   // 1000 max log entries
             status: DirtyValue::default(),
         })
     }
 
     /// Create with custom capacities
-    pub fn with_capacities(
-        max_chat: usize,
-        max_audio_chunks: usize,
-        max_logs: usize,
-    ) -> Arc<Self> {
+    pub fn with_capacities(max_chat: usize, max_audio_chunks: usize, max_logs: usize) -> Arc<Self> {
         Arc::new(Self {
             chat: ChatState::new(max_chat),
             audio: AudioState::new(max_audio_chunks),

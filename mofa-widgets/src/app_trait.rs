@@ -92,7 +92,9 @@ pub struct AppInfo {
 /// ```
 pub trait MofaApp {
     /// Returns metadata about this app
-    fn info() -> AppInfo where Self: Sized;
+    fn info() -> AppInfo
+    where
+        Self: Sized;
 
     /// Register this app's widgets with Makepad
     fn live_design(cx: &mut Cx);

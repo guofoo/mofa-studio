@@ -555,13 +555,7 @@ impl DoraBridge for AudioPlayerBridge {
         let buffer_receiver = self.buffer_status_receiver.clone();
 
         let handle = thread::spawn(move || {
-            Self::run_event_loop(
-                node_id,
-                state,
-                shared_state,
-                buffer_receiver,
-                stop_rx,
-            );
+            Self::run_event_loop(node_id, state, shared_state, buffer_receiver, stop_rx);
         });
 
         self.worker_handle = Some(handle);

@@ -41,10 +41,17 @@
               exit 1
             fi
 
-            DATAFLOW_DIR="$ROOT/apps/mofa-fm/dataflow"
-            if [ ! -d "$DATAFLOW_DIR" ]; then
-              echo "[MoFA][Nix] 缺少 dataflow 目录：$DATAFLOW_DIR" >&2
+            # Check for at least one app's dataflow directory
+            FM_DATAFLOW_DIR="$ROOT/apps/mofa-fm/dataflow"
+            DEBATE_DATAFLOW_DIR="$ROOT/apps/mofa-debate/dataflow"
+            if [ ! -d "$FM_DATAFLOW_DIR" ] && [ ! -d "$DEBATE_DATAFLOW_DIR" ]; then
+              echo "[MoFA][Nix] 缺少 dataflow 目录：$FM_DATAFLOW_DIR 或 $DEBATE_DATAFLOW_DIR" >&2
               exit 1
+            fi
+            # Use FM dataflow dir for dora daemon startup (default)
+            DATAFLOW_DIR="$FM_DATAFLOW_DIR"
+            if [ ! -d "$DATAFLOW_DIR" ]; then
+              DATAFLOW_DIR="$DEBATE_DATAFLOW_DIR"
             fi
 
             STATE_DIR="''${MOFA_STATE_DIR:-$ROOT/.nix-mofa}"

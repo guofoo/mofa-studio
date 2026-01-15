@@ -9,14 +9,14 @@
 
 mod audio_controls;
 mod chat_panel;
-pub mod design;  // Public for Makepad live_design path resolution
+pub mod design; // Public for Makepad live_design path resolution
 mod dora_handlers;
 mod log_panel;
 
-use makepad_widgets::*;
-use crate::mofa_hero::{MofaHeroWidgetExt, MofaHeroAction};
+use crate::dora_integration::{DoraCommand, DoraIntegration};
 use crate::log_bridge;
-use crate::dora_integration::{DoraIntegration, DoraCommand};
+use crate::mofa_hero::{MofaHeroAction, MofaHeroWidgetExt};
+use makepad_widgets::*;
 use mofa_widgets::participant_panel::ParticipantPanelWidgetExt;
 use mofa_widgets::{StateChangeListener, TimerControl};
 use std::path::PathBuf;
@@ -72,11 +72,11 @@ pub struct MoFaFMScreen {
     #[rust]
     output_devices: Vec<String>,
     #[rust]
-    log_level_filter: usize,  // 0=ALL, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR
+    log_level_filter: usize, // 0=ALL, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR
     #[rust]
-    log_node_filter: usize,   // 0=ALL, 1=ASR, 2=TTS, 3=LLM, 4=Bridge, 5=Monitor, 6=App
+    log_node_filter: usize, // 0=ALL, 1=ASR, 2=TTS, 3=LLM, 4=Bridge, 5=Monitor, 6=App
     #[rust]
-    log_entries: Vec<String>,  // Raw log entries for filtering
+    log_entries: Vec<String>, // Raw log entries for filtering
 
     // Dropdown width caching for popup menu sync
     #[rust]
@@ -106,11 +106,11 @@ pub struct MoFaFMScreen {
     #[rust]
     copy_chat_flash_active: bool,
     #[rust]
-    copy_chat_flash_start: f64,  // Absolute start time
+    copy_chat_flash_start: f64, // Absolute start time
     #[rust]
     copy_log_flash_active: bool,
     #[rust]
-    copy_log_flash_start: f64,   // Absolute start time
+    copy_log_flash_start: f64, // Absolute start time
     #[rust]
     chat_messages: Vec<ChatMessageEntry>,
     #[rust]
@@ -121,7 +121,7 @@ pub struct MoFaFMScreen {
     audio_player: Option<std::sync::Arc<crate::audio_player::AudioPlayer>>,
     // Participant audio levels for decay animation (matches conference-dashboard)
     #[rust]
-    participant_levels: [f64; 3],  // 0=student1, 1=student2, 2=tutor
+    participant_levels: [f64; 3], // 0=student1, 1=student2, 2=tutor
 
     // SharedDoraState tracking (for detecting changes)
     #[rust]
@@ -182,16 +182,30 @@ impl Widget for MoFaFMScreen {
                 if elapsed >= total_duration {
                     // Animation complete
                     self.copy_chat_flash_active = false;
-                    self.view.view(ids!(left_column.chat_container.chat_section.chat_header.copy_chat_btn))
-                        .apply_over(cx, live!{ draw_bg: { copied: 0.0 } });
+                    self.view
+                        .view(ids!(
+                            left_column
+                                .chat_container
+                                .chat_section
+                                .chat_header
+                                .copy_chat_btn
+                        ))
+                        .apply_over(cx, live! { draw_bg: { copied: 0.0 } });
                 } else if elapsed >= fade_start {
                     // Fade out phase - smoothstep interpolation
                     let t = (elapsed - fade_start) / fade_duration;
                     // Smoothstep: 3t² - 2t³ for smooth ease-out
                     let smooth_t = t * t * (3.0 - 2.0 * t);
                     let copied = 1.0 - smooth_t;
-                    self.view.view(ids!(left_column.chat_container.chat_section.chat_header.copy_chat_btn))
-                        .apply_over(cx, live!{ draw_bg: { copied: (copied) } });
+                    self.view
+                        .view(ids!(
+                            left_column
+                                .chat_container
+                                .chat_section
+                                .chat_header
+                                .copy_chat_btn
+                        ))
+                        .apply_over(cx, live! { draw_bg: { copied: (copied) } });
                 }
                 needs_redraw = true;
                 if self.copy_chat_flash_active {
@@ -214,16 +228,30 @@ impl Widget for MoFaFMScreen {
                 if elapsed >= total_duration {
                     // Animation complete
                     self.copy_log_flash_active = false;
-                    self.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.copy_log_btn))
-                        .apply_over(cx, live!{ draw_bg: { copied: 0.0 } });
+                    self.view
+                        .view(ids!(
+                            log_section
+                                .log_content_column
+                                .log_header
+                                .log_filter_row
+                                .copy_log_btn
+                        ))
+                        .apply_over(cx, live! { draw_bg: { copied: 0.0 } });
                 } else if elapsed >= fade_start {
                     // Fade out phase - smoothstep interpolation
                     let t = (elapsed - fade_start) / fade_duration;
                     // Smoothstep: 3t² - 2t³ for smooth ease-out
                     let smooth_t = t * t * (3.0 - 2.0 * t);
                     let copied = 1.0 - smooth_t;
-                    self.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.copy_log_btn))
-                        .apply_over(cx, live!{ draw_bg: { copied: (copied) } });
+                    self.view
+                        .view(ids!(
+                            log_section
+                                .log_content_column
+                                .log_header
+                                .log_filter_row
+                                .copy_log_btn
+                        ))
+                        .apply_over(cx, live! { draw_bg: { copied: (copied) } });
                 }
                 needs_redraw = true;
                 if self.copy_log_flash_active {
@@ -237,13 +265,29 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle mic mute button click
-        let mic_btn = self.view.view(ids!(audio_container.mic_container.mic_group.mic_mute_btn));
+        let mic_btn = self
+            .view
+            .view(ids!(audio_container.mic_container.mic_group.mic_mute_btn));
         match event.hits(cx, mic_btn.area()) {
             Hit::FingerUp(_) => {
                 self.mic_muted = !self.mic_muted;
-                self.view.view(ids!(audio_container.mic_container.mic_group.mic_mute_btn.mic_icon_on))
+                self.view
+                    .view(ids!(
+                        audio_container
+                            .mic_container
+                            .mic_group
+                            .mic_mute_btn
+                            .mic_icon_on
+                    ))
                     .set_visible(cx, !self.mic_muted);
-                self.view.view(ids!(audio_container.mic_container.mic_group.mic_mute_btn.mic_icon_off))
+                self.view
+                    .view(ids!(
+                        audio_container
+                            .mic_container
+                            .mic_group
+                            .mic_mute_btn
+                            .mic_icon_off
+                    ))
                     .set_visible(cx, self.mic_muted);
                 self.view.redraw(cx);
             }
@@ -252,13 +296,16 @@ impl Widget for MoFaFMScreen {
 
         // Handle AEC toggle button click
         // Note: AEC blink animation is now shader-driven, no timer needed
-        let aec_btn = self.view.view(ids!(audio_container.aec_container.aec_group.aec_toggle_btn));
+        let aec_btn = self
+            .view
+            .view(ids!(audio_container.aec_container.aec_group.aec_toggle_btn));
         match event.hits(cx, aec_btn.area()) {
             Hit::FingerUp(_) => {
                 self.aec_enabled = !self.aec_enabled;
                 let enabled_val = if self.aec_enabled { 1.0 } else { 0.0 };
-                self.view.view(ids!(audio_container.aec_container.aec_group.aec_toggle_btn))
-                    .apply_over(cx, live!{ draw_bg: { enabled: (enabled_val) } });
+                self.view
+                    .view(ids!(audio_container.aec_container.aec_group.aec_toggle_btn))
+                    .apply_over(cx, live! { draw_bg: { enabled: (enabled_val) } });
                 self.view.redraw(cx);
             }
             _ => {}
@@ -303,12 +350,26 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle toggle log panel button
-        if self.view.button(ids!(log_section.toggle_column.toggle_log_btn)).clicked(actions) {
+        if self
+            .view
+            .button(ids!(log_section.toggle_column.toggle_log_btn))
+            .clicked(actions)
+        {
             self.toggle_log_panel(cx);
         }
 
         // Handle input device selection
-        if let Some(item) = self.view.drop_down(ids!(audio_container.device_container.device_selectors.input_device_group.input_device_dropdown)).selected(actions) {
+        if let Some(item) = self
+            .view
+            .drop_down(ids!(
+                audio_container
+                    .device_container
+                    .device_selectors
+                    .input_device_group
+                    .input_device_dropdown
+            ))
+            .selected(actions)
+        {
             if item < self.input_devices.len() {
                 let device_name = self.input_devices[item].clone();
                 self.select_input_device(cx, &device_name);
@@ -316,7 +377,17 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle output device selection
-        if let Some(item) = self.view.drop_down(ids!(audio_container.device_container.device_selectors.output_device_group.output_device_dropdown)).selected(actions) {
+        if let Some(item) = self
+            .view
+            .drop_down(ids!(
+                audio_container
+                    .device_container
+                    .device_selectors
+                    .output_device_group
+                    .output_device_dropdown
+            ))
+            .selected(actions)
+        {
             if item < self.output_devices.len() {
                 let device_name = self.output_devices[item].clone();
                 self.select_output_device(&device_name);
@@ -324,27 +395,60 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle log level filter dropdown
-        if let Some(selected) = self.view.drop_down(ids!(log_section.log_content_column.log_header.log_filter_row.level_filter)).selected(actions) {
+        if let Some(selected) = self
+            .view
+            .drop_down(ids!(
+                log_section
+                    .log_content_column
+                    .log_header
+                    .log_filter_row
+                    .level_filter
+            ))
+            .selected(actions)
+        {
             self.log_level_filter = selected;
             self.update_log_display(cx);
         }
 
         // Handle log node filter dropdown
-        if let Some(selected) = self.view.drop_down(ids!(log_section.log_content_column.log_header.log_filter_row.node_filter)).selected(actions) {
+        if let Some(selected) = self
+            .view
+            .drop_down(ids!(
+                log_section
+                    .log_content_column
+                    .log_header
+                    .log_filter_row
+                    .node_filter
+            ))
+            .selected(actions)
+        {
             self.log_node_filter = selected;
             self.update_log_display(cx);
         }
 
         // Handle copy log button (manual click detection since it's a View)
-        let copy_log_btn = self.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.copy_log_btn));
+        let copy_log_btn = self.view.view(ids!(
+            log_section
+                .log_content_column
+                .log_header
+                .log_filter_row
+                .copy_log_btn
+        ));
         match event.hits(cx, copy_log_btn.area()) {
             Hit::FingerUp(_) => {
                 self.copy_logs_to_clipboard(cx);
                 // Trigger copied feedback animation with NextFrame-based smooth fade
-                self.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.copy_log_btn))
-                    .apply_over(cx, live!{ draw_bg: { copied: 1.0 } });
+                self.view
+                    .view(ids!(
+                        log_section
+                            .log_content_column
+                            .log_header
+                            .log_filter_row
+                            .copy_log_btn
+                    ))
+                    .apply_over(cx, live! { draw_bg: { copied: 1.0 } });
                 self.copy_log_flash_active = true;
-                self.copy_log_flash_start = 0.0;  // Sentinel: capture actual time on first NextFrame
+                self.copy_log_flash_start = 0.0; // Sentinel: capture actual time on first NextFrame
                 cx.new_next_frame();
                 self.view.redraw(cx);
             }
@@ -352,15 +456,28 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle copy chat button (manual click detection since it's a View)
-        let copy_chat_btn = self.view.view(ids!(left_column.chat_container.chat_section.chat_header.copy_chat_btn));
+        let copy_chat_btn = self.view.view(ids!(
+            left_column
+                .chat_container
+                .chat_section
+                .chat_header
+                .copy_chat_btn
+        ));
         match event.hits(cx, copy_chat_btn.area()) {
             Hit::FingerUp(_) => {
                 self.copy_chat_to_clipboard(cx);
                 // Trigger copied feedback animation with NextFrame-based smooth fade
-                self.view.view(ids!(left_column.chat_container.chat_section.chat_header.copy_chat_btn))
-                    .apply_over(cx, live!{ draw_bg: { copied: 1.0 } });
+                self.view
+                    .view(ids!(
+                        left_column
+                            .chat_container
+                            .chat_section
+                            .chat_header
+                            .copy_chat_btn
+                    ))
+                    .apply_over(cx, live! { draw_bg: { copied: 1.0 } });
                 self.copy_chat_flash_active = true;
-                self.copy_chat_flash_start = 0.0;  // Sentinel: capture actual time on first NextFrame
+                self.copy_chat_flash_start = 0.0; // Sentinel: capture actual time on first NextFrame
                 cx.new_next_frame();
                 self.view.redraw(cx);
             }
@@ -368,17 +485,50 @@ impl Widget for MoFaFMScreen {
         }
 
         // Handle log search text change
-        if self.view.text_input(ids!(log_section.log_content_column.log_header.log_filter_row.log_search)).changed(actions).is_some() {
+        if self
+            .view
+            .text_input(ids!(
+                log_section
+                    .log_content_column
+                    .log_header
+                    .log_filter_row
+                    .log_search
+            ))
+            .changed(actions)
+            .is_some()
+        {
             self.update_log_display(cx);
         }
 
         // Handle Send button click
-        if self.view.button(ids!(left_column.prompt_container.prompt_section.prompt_row.button_group.send_prompt_btn)).clicked(actions) {
+        if self
+            .view
+            .button(ids!(
+                left_column
+                    .prompt_container
+                    .prompt_section
+                    .prompt_row
+                    .button_group
+                    .send_prompt_btn
+            ))
+            .clicked(actions)
+        {
             self.send_prompt(cx);
         }
 
         // Handle Reset button click
-        if self.view.button(ids!(left_column.prompt_container.prompt_section.prompt_row.button_group.reset_btn)).clicked(actions) {
+        if self
+            .view
+            .button(ids!(
+                left_column
+                    .prompt_container
+                    .prompt_section
+                    .prompt_row
+                    .button_group
+                    .reset_btn
+            ))
+            .clicked(actions)
+        {
             self.reset_conversation(cx);
         }
     }
@@ -386,26 +536,44 @@ impl Widget for MoFaFMScreen {
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
         // Update popup menu widths to match dropdown widths
         // This handles first-frame zero width and caches values for performance
-        let input_dropdown = self.view.drop_down(ids!(audio_container.device_container.device_selectors.input_device_group.input_device_dropdown));
+        let input_dropdown = self.view.drop_down(ids!(
+            audio_container
+                .device_container
+                .device_selectors
+                .input_device_group
+                .input_device_dropdown
+        ));
         let input_width = input_dropdown.area().rect(cx).size.x;
 
         // Only update if width changed significantly (> 1px) to avoid unnecessary apply_over calls
         if input_width > 0.0 && (input_width - self.cached_input_dropdown_width).abs() > 1.0 {
             self.cached_input_dropdown_width = input_width;
-            input_dropdown.apply_over(cx, live! {
-                popup_menu: { width: (input_width) }
-            });
+            input_dropdown.apply_over(
+                cx,
+                live! {
+                    popup_menu: { width: (input_width) }
+                },
+            );
         }
 
-        let output_dropdown = self.view.drop_down(ids!(audio_container.device_container.device_selectors.output_device_group.output_device_dropdown));
+        let output_dropdown = self.view.drop_down(ids!(
+            audio_container
+                .device_container
+                .device_selectors
+                .output_device_group
+                .output_device_dropdown
+        ));
         let output_width = output_dropdown.area().rect(cx).size.x;
 
         // Only update if width changed significantly (> 1px)
         if output_width > 0.0 && (output_width - self.cached_output_dropdown_width).abs() > 1.0 {
             self.cached_output_dropdown_width = output_width;
-            output_dropdown.apply_over(cx, live! {
-                popup_menu: { width: (output_width) }
-            });
+            output_dropdown.apply_over(
+                cx,
+                live! {
+                    popup_menu: { width: (output_width) }
+                },
+            );
         }
 
         // Force an extra redraw on first frame to ensure widths are properly captured
@@ -443,8 +611,8 @@ impl TimerControl for MoFaFMScreenRef {
     /// Note: AEC blink animation is shader-driven and auto-resumes
     fn start_timers(&self, cx: &mut Cx) {
         if let Some(mut inner) = self.borrow_mut() {
-            inner.audio_timer = cx.start_interval(0.05);  // 50ms for mic level
-            inner.dora_timer = cx.start_interval(0.1);    // 100ms for dora events
+            inner.audio_timer = cx.start_interval(0.05); // 50ms for mic level
+            inner.dora_timer = cx.start_interval(0.1); // 100ms for dora events
             ::log::debug!("MoFaFMScreen timers started");
         }
     }
@@ -454,135 +622,354 @@ impl StateChangeListener for MoFaFMScreenRef {
     fn on_dark_mode_change(&self, cx: &mut Cx, dark_mode: f64) {
         if let Some(mut inner) = self.borrow_mut() {
             // Apply dark mode to screen background
-            inner.view.apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner.view.apply_over(
+                cx,
+                live! {
+                    draw_bg: { dark_mode: (dark_mode) }
+                },
+            );
 
             // Apply dark mode to chat section
-            inner.view.view(ids!(left_column.chat_container.chat_section)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(left_column.chat_container.chat_section))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to chat header and title
-            inner.view.view(ids!(left_column.chat_container.chat_section.chat_header)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(left_column.chat_container.chat_section.chat_header.chat_title)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(left_column.chat_container.chat_section.chat_header))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .label(ids!(
+                    left_column
+                        .chat_container
+                        .chat_section
+                        .chat_header
+                        .chat_title
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to copy chat button
-            inner.view.view(ids!(left_column.chat_container.chat_section.chat_header.copy_chat_btn)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(
+                    left_column
+                        .chat_container
+                        .chat_section
+                        .chat_header
+                        .copy_chat_btn
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to chat content Markdown
-            let chat_markdown = inner.view.markdown(ids!(left_column.chat_container.chat_section.chat_scroll.chat_content_wrapper.chat_content));
+            let chat_markdown = inner.view.markdown(ids!(
+                left_column
+                    .chat_container
+                    .chat_section
+                    .chat_scroll
+                    .chat_content_wrapper
+                    .chat_content
+            ));
             if dark_mode > 0.5 {
                 let light_color = vec4(0.945, 0.961, 0.976, 1.0); // TEXT_PRIMARY_DARK (#f1f5f9)
-                chat_markdown.apply_over(cx, live!{
-                    font_color: (light_color)
-                    draw_normal: { color: (light_color) }
-                    draw_bold: { color: (light_color) }
-                    draw_italic: { color: (light_color) }
-                    draw_fixed: { color: (vec4(0.580, 0.639, 0.722, 1.0)) } // SLATE_400 for code
-                });
+                chat_markdown.apply_over(
+                    cx,
+                    live! {
+                        font_color: (light_color)
+                        draw_normal: { color: (light_color) }
+                        draw_bold: { color: (light_color) }
+                        draw_italic: { color: (light_color) }
+                        draw_fixed: { color: (vec4(0.580, 0.639, 0.722, 1.0)) } // SLATE_400 for code
+                    },
+                );
             } else {
                 let dark_color = vec4(0.122, 0.161, 0.216, 1.0); // TEXT_PRIMARY (#1f2937)
-                chat_markdown.apply_over(cx, live!{
-                    font_color: (dark_color)
-                    draw_normal: { color: (dark_color) }
-                    draw_bold: { color: (dark_color) }
-                    draw_italic: { color: (dark_color) }
-                    draw_fixed: { color: (vec4(0.420, 0.451, 0.502, 1.0)) } // GRAY_500 for code
-                });
+                chat_markdown.apply_over(
+                    cx,
+                    live! {
+                        font_color: (dark_color)
+                        draw_normal: { color: (dark_color) }
+                        draw_bold: { color: (dark_color) }
+                        draw_italic: { color: (dark_color) }
+                        draw_fixed: { color: (vec4(0.420, 0.451, 0.502, 1.0)) } // GRAY_500 for code
+                    },
+                );
             }
 
             // Apply dark mode to audio control containers
-            inner.view.view(ids!(left_column.audio_container.mic_container)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(left_column.audio_container.mic_container))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
             // Apply dark mode to mic icon
-            inner.view.icon(ids!(left_column.audio_container.mic_container.mic_group.mic_mute_btn.mic_icon_on.icon)).apply_over(cx, live!{
-                draw_icon: { dark_mode: (dark_mode) }
-            });
-            inner.view.view(ids!(left_column.audio_container.aec_container)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.view(ids!(left_column.audio_container.buffer_container)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.view(ids!(left_column.audio_container.device_container)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .icon(ids!(
+                    left_column
+                        .audio_container
+                        .mic_container
+                        .mic_group
+                        .mic_mute_btn
+                        .mic_icon_on
+                        .icon
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_icon: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .view(ids!(left_column.audio_container.aec_container))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .view(ids!(left_column.audio_container.buffer_container))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .view(ids!(left_column.audio_container.device_container))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to device labels
-            inner.view.label(ids!(left_column.audio_container.device_container.device_selectors.input_device_group.input_device_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(left_column.audio_container.device_container.device_selectors.output_device_group.output_device_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(
+                    left_column
+                        .audio_container
+                        .device_container
+                        .device_selectors
+                        .input_device_group
+                        .input_device_label
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .label(ids!(
+                    left_column
+                        .audio_container
+                        .device_container
+                        .device_selectors
+                        .output_device_group
+                        .output_device_label
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // NOTE: DropDown apply_over causes "target class not found" errors
             // TODO: Find alternative way to theme dropdowns
 
             // Apply dark mode to MofaHero
-            inner.view.mofa_hero(ids!(left_column.mofa_hero)).update_dark_mode(cx, dark_mode);
+            inner
+                .view
+                .mofa_hero(ids!(left_column.mofa_hero))
+                .update_dark_mode(cx, dark_mode);
 
             // Apply dark mode to participant panels
-            inner.view.participant_panel(ids!(left_column.participant_container.participant_bar.student1_panel)).update_dark_mode(cx, dark_mode);
-            inner.view.participant_panel(ids!(left_column.participant_container.participant_bar.student2_panel)).update_dark_mode(cx, dark_mode);
-            inner.view.participant_panel(ids!(left_column.participant_container.participant_bar.tutor_panel)).update_dark_mode(cx, dark_mode);
+            inner
+                .view
+                .participant_panel(ids!(
+                    left_column
+                        .participant_container
+                        .participant_bar
+                        .student1_panel
+                ))
+                .update_dark_mode(cx, dark_mode);
+            inner
+                .view
+                .participant_panel(ids!(
+                    left_column
+                        .participant_container
+                        .participant_bar
+                        .student2_panel
+                ))
+                .update_dark_mode(cx, dark_mode);
+            inner
+                .view
+                .participant_panel(ids!(
+                    left_column
+                        .participant_container
+                        .participant_bar
+                        .tutor_panel
+                ))
+                .update_dark_mode(cx, dark_mode);
 
             // Apply dark mode to prompt section
-            inner.view.view(ids!(left_column.prompt_container.prompt_section)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(left_column.prompt_container.prompt_section))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
             // NOTE: TextInput apply_over causes "target class not found" errors
-            inner.view.button(ids!(left_column.prompt_container.prompt_section.prompt_row.button_group.reset_btn)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .button(ids!(
+                    left_column
+                        .prompt_container
+                        .prompt_section
+                        .prompt_row
+                        .button_group
+                        .reset_btn
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to splitter
-            inner.view.view(ids!(splitter)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner.view.view(ids!(splitter)).apply_over(
+                cx,
+                live! {
+                    draw_bg: { dark_mode: (dark_mode) }
+                },
+            );
 
             // Apply dark mode to log section - toggle column
-            inner.view.view(ids!(log_section.toggle_column)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.button(ids!(log_section.toggle_column.toggle_log_btn)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner.view.view(ids!(log_section.toggle_column)).apply_over(
+                cx,
+                live! {
+                    draw_bg: { dark_mode: (dark_mode) }
+                },
+            );
+            inner
+                .view
+                .button(ids!(log_section.toggle_column.toggle_log_btn))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to log section - log content column
-            inner.view.view(ids!(log_section.log_content_column)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.view(ids!(log_section.log_content_column.log_header)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(log_section.log_content_column.log_header.log_title_row.log_title_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(log_section.log_content_column))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .view(ids!(log_section.log_content_column.log_header))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .label(ids!(
+                    log_section
+                        .log_content_column
+                        .log_header
+                        .log_title_row
+                        .log_title_label
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to copy log button
-            inner.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.copy_log_btn)).apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .view(ids!(
+                    log_section
+                        .log_content_column
+                        .log_header
+                        .log_filter_row
+                        .copy_log_btn
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_bg: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Apply dark mode to log content Markdown
             // Update dark_mode instance variable on each draw component (they have get_color shader functions)
-            let log_markdown = inner.view.markdown(ids!(log_section.log_content_column.log_scroll.log_content_wrapper.log_content));
-            log_markdown.apply_over(cx, live!{
-                draw_normal: { dark_mode: (dark_mode) }
-                draw_bold: { dark_mode: (dark_mode) }
-                draw_fixed: { dark_mode: (dark_mode) }
-            });
+            let log_markdown = inner.view.markdown(ids!(
+                log_section
+                    .log_content_column
+                    .log_scroll
+                    .log_content_wrapper
+                    .log_content
+            ));
+            log_markdown.apply_over(
+                cx,
+                live! {
+                    draw_normal: { dark_mode: (dark_mode) }
+                    draw_bold: { dark_mode: (dark_mode) }
+                    draw_fixed: { dark_mode: (dark_mode) }
+                },
+            );
 
             inner.view.redraw(cx);
         }

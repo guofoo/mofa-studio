@@ -1,15 +1,15 @@
 //! MoFA Settings App - Provider configuration and preferences
 
-pub mod data;
-pub mod screen;
-pub mod providers_panel;
-pub mod provider_view;
 pub mod add_provider_modal;
+pub mod data;
+pub mod provider_view;
+pub mod providers_panel;
+pub mod screen;
 
 pub use screen::SettingsScreenRef;
 
 use makepad_widgets::Cx;
-use mofa_widgets::{MofaApp, AppInfo};
+use mofa_widgets::{AppInfo, MofaApp};
 
 /// MoFA Settings app descriptor
 pub struct MoFaSettingsApp;

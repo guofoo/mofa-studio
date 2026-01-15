@@ -74,16 +74,16 @@
 //! }
 //! ```
 
+pub mod app_trait;
+pub mod audio_player;
+pub mod led_gauge;
+pub mod log_panel;
+pub mod participant_panel;
 pub mod theme;
 pub mod waveform_view;
-pub mod participant_panel;
-pub mod log_panel;
-pub mod led_gauge;
-pub mod audio_player;
-pub mod app_trait;
 
 // Re-export app trait types for convenience
-pub use app_trait::{MofaApp, TimerControl, AppInfo, AppRegistry, StateChangeListener};
+pub use app_trait::{AppInfo, AppRegistry, MofaApp, StateChangeListener, TimerControl};
 
 use makepad_widgets::Cx;
 

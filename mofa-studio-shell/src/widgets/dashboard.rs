@@ -40,6 +40,7 @@ live_design! {
 
     use mofa_fm::screen::design::MoFaFMScreen;
     use mofa_settings::screen::SettingsScreen;
+    use mofa_debate::screen::design::MoFaDebateScreen;
     use crate::widgets::tabs::TabWidget;
     use crate::widgets::tabs::TabBar;
 
@@ -251,6 +252,11 @@ live_design! {
                         fm_page = <MoFaFMScreen> {
                             width: Fill, height: Fill
                             visible: true
+                        }
+
+                        debate_page = <MoFaDebateScreen> {
+                            width: Fill, height: Fill
+                            visible: false
                         }
 
                         app_page = <View> {

@@ -1,7 +1,7 @@
 //! Data models for settings
 
-pub mod providers;
 pub mod preferences;
+pub mod providers;
 
-pub use providers::*;
 pub use preferences::*;
+pub use providers::*;

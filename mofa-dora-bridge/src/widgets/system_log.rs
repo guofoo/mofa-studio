@@ -108,12 +108,7 @@ impl SystemLogBridge {
             // Receive dora events with timeout
             match events.recv_timeout(std::time::Duration::from_millis(100)) {
                 Some(event) => {
-                    Self::handle_dora_event(
-                        event,
-                        shared_state.as_ref(),
-                        &log_sources,
-                        &min_level,
-                    );
+                    Self::handle_dora_event(event, shared_state.as_ref(), &log_sources, &min_level);
                 }
                 None => {
                     // Timeout or no event, continue

@@ -92,15 +92,18 @@ impl DynamicNodeDispatcher {
 
         for node_spec in mofa_nodes {
             let bridge: Box<dyn DoraBridge> = match node_spec.node_type {
-                MofaNodeType::AudioPlayer => {
-                    Box::new(AudioPlayerBridge::with_shared_state(&node_spec.id, shared_state.clone()))
-                }
-                MofaNodeType::SystemLog => {
-                    Box::new(SystemLogBridge::with_shared_state(&node_spec.id, shared_state.clone()))
-                }
-                MofaNodeType::PromptInput => {
-                    Box::new(PromptInputBridge::with_shared_state(&node_spec.id, shared_state.clone()))
-                }
+                MofaNodeType::AudioPlayer => Box::new(AudioPlayerBridge::with_shared_state(
+                    &node_spec.id,
+                    shared_state.clone(),
+                )),
+                MofaNodeType::SystemLog => Box::new(SystemLogBridge::with_shared_state(
+                    &node_spec.id,
+                    shared_state.clone(),
+                )),
+                MofaNodeType::PromptInput => Box::new(PromptInputBridge::with_shared_state(
+                    &node_spec.id,
+                    shared_state.clone(),
+                )),
                 MofaNodeType::MicInput => {
                     // TODO: Implement MicInputBridge
                     continue;

@@ -113,7 +113,7 @@ impl Provider {
                 ProviderConnectionStatus::Connected => "#22c55e", // Green
                 ProviderConnectionStatus::Connecting => "#f59e0b", // Yellow
                 ProviderConnectionStatus::Disconnected => "#6b7280", // Gray
-                ProviderConnectionStatus::Error(_) => "#ef4444", // Red
+                ProviderConnectionStatus::Error(_) => "#ef4444",  // Red
             }
         }
     }
@@ -144,10 +144,7 @@ pub fn get_supported_providers() -> Vec<Provider> {
             api_key: None,
             provider_type: ProviderType::DeepSeek,
             enabled: false,
-            models: vec![
-                "deepseek-chat".to_string(),
-                "deepseek-reasoner".to_string(),
-            ],
+            models: vec!["deepseek-chat".to_string(), "deepseek-reasoner".to_string()],
             is_custom: false,
             connection_status: ProviderConnectionStatus::Disconnected,
         },

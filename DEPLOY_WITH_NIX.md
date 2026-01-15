@@ -1,6 +1,8 @@
 # MoFA Studio：Nix 环境快速部署
 
 > 适用于 macOS (Arm)；第一次执行会下载 ~2 GB（Rust toolchain + PyTorch/FunASR 等），建议使用稳定网络。
+>
+> 
 
 ## 1. 安装 Nix
 

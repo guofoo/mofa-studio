@@ -218,19 +218,22 @@ impl Widget for WaveformView {
                 }
             }
 
-            self.view.apply_over(cx, live! {
-                draw_bg: {
-                    anim_time: (self.animator_time),
-                    band0: (self.band_levels[0] as f64),
-                    band1: (self.band_levels[1] as f64),
-                    band2: (self.band_levels[2] as f64),
-                    band3: (self.band_levels[3] as f64),
-                    band4: (self.band_levels[4] as f64),
-                    band5: (self.band_levels[5] as f64),
-                    band6: (self.band_levels[6] as f64),
-                    band7: (self.band_levels[7] as f64),
-                }
-            });
+            self.view.apply_over(
+                cx,
+                live! {
+                    draw_bg: {
+                        anim_time: (self.animator_time),
+                        band0: (self.band_levels[0] as f64),
+                        band1: (self.band_levels[1] as f64),
+                        band2: (self.band_levels[2] as f64),
+                        band3: (self.band_levels[3] as f64),
+                        band4: (self.band_levels[4] as f64),
+                        band5: (self.band_levels[5] as f64),
+                        band6: (self.band_levels[6] as f64),
+                        band7: (self.band_levels[7] as f64),
+                    }
+                },
+            );
             self.view.redraw(cx);
         }
     }

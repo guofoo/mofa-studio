@@ -1,7 +1,7 @@
 //! Provider View - Right panel for provider configuration
 
+use crate::data::{Provider, ProviderConnectionStatus, ProviderId};
 use makepad_widgets::*;
-use crate::data::{Provider, ProviderId, ProviderConnectionStatus};
 
 live_design! {
     use link::theme::*;
@@ -493,9 +493,12 @@ impl Widget for ProviderView {
 
                         // Set the radio button selected state
                         let selected_val = if is_selected { 1.0 } else { 0.0 };
-                        item.view(ids!(radio_circle)).apply_over(cx, live!{
-                            draw_bg: { selected: (selected_val) }
-                        });
+                        item.view(ids!(radio_circle)).apply_over(
+                            cx,
+                            live! {
+                                draw_bg: { selected: (selected_val) }
+                            },
+                        );
 
                         item.draw_all(cx, scope);
                     }
@@ -514,30 +517,51 @@ impl ProviderViewRef {
             inner.show_content = true;
             inner.available_models = provider.models.clone();
             inner.selected_model = provider.models.first().cloned();
-            inner.selected_model_index = if provider.models.is_empty() { None } else { Some(0) };
+            inner.selected_model_index = if provider.models.is_empty() {
+                None
+            } else {
+                Some(0)
+            };
 
             // Update header
-            inner.view.label(ids!(provider_name)).set_text(cx, &provider.name);
+            inner
+                .view
+                .label(ids!(provider_name))
+                .set_text(cx, &provider.name);
 
             // Show content, hide empty state
             inner.view.view(ids!(content)).set_visible(cx, true);
             inner.view.view(ids!(empty_state)).set_visible(cx, false);
 
             // Set input values
-            inner.view.text_input(ids!(api_host_input)).set_text(cx, &provider.url);
-            inner.view.text_input(ids!(api_key_input)).set_text(cx,
-                provider.api_key.as_deref().unwrap_or("")
-            );
+            inner
+                .view
+                .text_input(ids!(api_host_input))
+                .set_text(cx, &provider.url);
+            inner
+                .view
+                .text_input(ids!(api_key_input))
+                .set_text(cx, provider.api_key.as_deref().unwrap_or(""));
 
             // Update sync button state based on API key
-            let has_api_key = provider.api_key.as_ref().map(|k| !k.is_empty()).unwrap_or(false);
-            inner.view.button(ids!(sync_button)).apply_over(cx, live!{
-                draw_bg: { disabled: (if has_api_key { 0.0 } else { 1.0 }) }
-            });
+            let has_api_key = provider
+                .api_key
+                .as_ref()
+                .map(|k| !k.is_empty())
+                .unwrap_or(false);
+            inner.view.button(ids!(sync_button)).apply_over(
+                cx,
+                live! {
+                    draw_bg: { disabled: (if has_api_key { 0.0 } else { 1.0 }) }
+                },
+            );
 
             // Update sync status text
             if !has_api_key {
-                inner.view.label(ids!(sync_status)).set_text(cx, "Enter API key to sync models");
+                inner
+                    .view
+                    .label(ids!(sync_status))
+                    .set_text(cx, "Enter API key to sync models");
             } else {
                 inner.view.label(ids!(sync_status)).set_text(cx, "");
             }
@@ -546,7 +570,10 @@ impl ProviderViewRef {
             Self::display_models_internal(&mut inner, cx, &provider.models);
 
             // Show/hide remove button for custom providers
-            inner.view.button(ids!(remove_button)).set_visible(cx, provider.is_custom);
+            inner
+                .view
+                .button(ids!(remove_button))
+                .set_visible(cx, provider.is_custom);
 
             // Update status
             let status_text = match &provider.connection_status {
@@ -555,16 +582,26 @@ impl ProviderViewRef {
                 ProviderConnectionStatus::Connected => "Connected",
                 ProviderConnectionStatus::Error(_) => "Error",
             };
-            inner.view.label(ids!(status_label)).set_text(cx, status_text);
+            inner
+                .view
+                .label(ids!(status_label))
+                .set_text(cx, status_text);
 
             inner.view.redraw(cx);
         }
     }
 
     /// Internal helper to display models
-    fn display_models_internal(inner: &mut std::cell::RefMut<ProviderView>, cx: &mut Cx, models: &[String]) {
+    fn display_models_internal(
+        inner: &mut std::cell::RefMut<ProviderView>,
+        cx: &mut Cx,
+        models: &[String],
+    ) {
         // Show/hide no models label based on whether we have models
-        inner.view.label(ids!(no_models_label)).set_visible(cx, models.is_empty());
+        inner
+            .view
+            .label(ids!(no_models_label))
+            .set_visible(cx, models.is_empty());
 
         // Store models in the struct - the PortalList will render them in draw_walk
         inner.available_models = models.to_vec();
@@ -591,9 +628,15 @@ impl ProviderViewRef {
             Self::display_models_internal(&mut inner, cx, &models);
 
             if models.is_empty() {
-                inner.view.label(ids!(sync_status)).set_text(cx, "No models found");
+                inner
+                    .view
+                    .label(ids!(sync_status))
+                    .set_text(cx, "No models found");
             } else {
-                inner.view.label(ids!(sync_status)).set_text(cx, &format!("Found {} models", models.len()));
+                inner
+                    .view
+                    .label(ids!(sync_status))
+                    .set_text(cx, &format!("Found {} models", models.len()));
             }
 
             inner.view.redraw(cx);
@@ -613,7 +656,10 @@ impl ProviderViewRef {
             inner.view.view(ids!(content)).set_visible(cx, false);
             inner.view.view(ids!(empty_state)).set_visible(cx, true);
 
-            inner.view.label(ids!(provider_name)).set_text(cx, "Select a Provider");
+            inner
+                .view
+                .label(ids!(provider_name))
+                .set_text(cx, "Select a Provider");
             inner.view.label(ids!(status_label)).set_text(cx, "");
 
             inner.view.redraw(cx);
@@ -622,7 +668,8 @@ impl ProviderViewRef {
 
     /// Get the current provider ID being edited
     pub fn current_provider_id(&self) -> Option<ProviderId> {
-        self.borrow().and_then(|inner| inner.current_provider_id.clone())
+        self.borrow()
+            .and_then(|inner| inner.current_provider_id.clone())
     }
 
     /// Get the current form values
@@ -631,7 +678,11 @@ impl ProviderViewRef {
             let api_host = inner.view.text_input(ids!(api_host_input)).text();
             let api_key = {
                 let key = inner.view.text_input(ids!(api_key_input)).text();
-                if key.is_empty() { None } else { Some(key) }
+                if key.is_empty() {
+                    None
+                } else {
+                    Some(key)
+                }
             };
 
             (api_host, api_key)
@@ -642,54 +693,116 @@ impl ProviderViewRef {
     pub fn update_dark_mode(&self, cx: &mut Cx, dark_mode: f64) {
         if let Some(mut inner) = self.borrow_mut() {
             // Main container background
-            inner.view.apply_over(cx, live!{
-                draw_bg: { dark_mode: (dark_mode) }
-            });
+            inner.view.apply_over(
+                cx,
+                live! {
+                    draw_bg: { dark_mode: (dark_mode) }
+                },
+            );
 
             // Header labels
-            inner.view.label(ids!(header.provider_name)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(header.status_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner.view.label(ids!(header.provider_name)).apply_over(
+                cx,
+                live! {
+                    draw_text: { dark_mode: (dark_mode) }
+                },
+            );
+            inner.view.label(ids!(header.status_label)).apply_over(
+                cx,
+                live! {
+                    draw_text: { dark_mode: (dark_mode) }
+                },
+            );
 
             // Host section
-            inner.view.label(ids!(content.host_section.host_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(content.host_section.host_label))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
             // NOTE: TextInput apply_over causes "target class not found" errors
-            inner.view.label(ids!(content.host_section.host_hint)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(content.host_section.host_hint))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Key section
-            inner.view.label(ids!(content.key_section.key_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(content.key_section.key_label))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
             // NOTE: TextInput apply_over causes "target class not found" errors
-            inner.view.label(ids!(content.key_section.key_hint)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(content.key_section.key_hint))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Models section
-            inner.view.label(ids!(content.models_section.models_header.models_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(content.models_section.sync_status)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(content.models_section.models_list_container.no_models_label)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner
+                .view
+                .label(ids!(content.models_section.models_header.models_label))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .label(ids!(content.models_section.sync_status))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
+            inner
+                .view
+                .label(ids!(
+                    content.models_section.models_list_container.no_models_label
+                ))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             // Empty state labels
-            inner.view.label(ids!(empty_state.empty_title)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
-            inner.view.label(ids!(empty_state.empty_subtitle)).apply_over(cx, live!{
-                draw_text: { dark_mode: (dark_mode) }
-            });
+            inner.view.label(ids!(empty_state.empty_title)).apply_over(
+                cx,
+                live! {
+                    draw_text: { dark_mode: (dark_mode) }
+                },
+            );
+            inner
+                .view
+                .label(ids!(empty_state.empty_subtitle))
+                .apply_over(
+                    cx,
+                    live! {
+                        draw_text: { dark_mode: (dark_mode) }
+                    },
+                );
 
             inner.view.redraw(cx);
         }

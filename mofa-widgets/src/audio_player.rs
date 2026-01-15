@@ -7,11 +7,11 @@
 //! - Uses channels for thread-safe communication
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
-use crossbeam_channel::{Sender, Receiver, unbounded};
 
 /// Segment tracking for knowing which participant owns audio in the buffer
 #[derive(Clone, Debug)]
@@ -186,9 +186,9 @@ struct SharedAudioState {
     buffer_seconds: f64,
     is_playing: bool,
     waveform: Vec<f32>,
-    output_waveform: Vec<f32>,  // Samples currently being played
+    output_waveform: Vec<f32>, // Samples currently being played
     current_question_id: u32,
-    current_participant_idx: Option<usize>,  // 0=student1, 1=student2, 2=tutor
+    current_participant_idx: Option<usize>, // 0=student1, 1=student2, 2=tutor
 }
 
 /// Audio player handle - can be cloned and shared across threads
@@ -231,8 +231,17 @@ impl AudioPlayer {
     }
 
     /// Add audio samples to the buffer
-    pub fn write_audio(&self, samples: &[f32], question_id: Option<u32>, participant_idx: Option<usize>) {
-        let _ = self.command_tx.send(AudioCommand::Write(samples.to_vec(), question_id, participant_idx));
+    pub fn write_audio(
+        &self,
+        samples: &[f32],
+        question_id: Option<u32>,
+        participant_idx: Option<usize>,
+    ) {
+        let _ = self.command_tx.send(AudioCommand::Write(
+            samples.to_vec(),
+            question_id,
+            participant_idx,
+        ));
     }
 
     /// Get buffer fill percentage
@@ -299,16 +308,23 @@ fn run_audio_thread(
     state: Arc<Mutex<SharedAudioState>>,
 ) -> Result<(), String> {
     let buffer_seconds = 60.0;
-    let buffer = Arc::new(Mutex::new(CircularAudioBuffer::new(buffer_seconds, sample_rate)));
+    let buffer = Arc::new(Mutex::new(CircularAudioBuffer::new(
+        buffer_seconds,
+        sample_rate,
+    )));
     let is_playing = Arc::new(AtomicBool::new(false));
     let current_question_id = Arc::new(AtomicU32::new(0));
 
     // Initialize cpal audio output
     let host = cpal::default_host();
-    let device = host.default_output_device()
+    let device = host
+        .default_output_device()
         .ok_or_else(|| "No audio output device found".to_string())?;
 
-    log::info!("Audio thread started - device: {}", device.name().unwrap_or_default());
+    log::info!(
+        "Audio thread started - device: {}",
+        device.name().unwrap_or_default()
+    );
 
     let config = cpal::StreamConfig {
         channels: 1,
@@ -320,50 +336,54 @@ fn run_audio_thread(
     let is_playing_clone = Arc::clone(&is_playing);
     let state_for_callback = Arc::clone(&state);
 
-    let stream = device.build_output_stream(
-        &config,
-        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            if is_playing_clone.load(Ordering::Relaxed) {
-                let mut buf = buffer_clone.lock();
-                buf.read(data);
-                let current_participant = buf.current_participant();
-                drop(buf); // Release buffer lock before acquiring state lock
+    let stream = device
+        .build_output_stream(
+            &config,
+            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                if is_playing_clone.load(Ordering::Relaxed) {
+                    let mut buf = buffer_clone.lock();
+                    buf.read(data);
+                    let current_participant = buf.current_participant();
+                    drop(buf); // Release buffer lock before acquiring state lock
 
-                // Update state with current playing participant and waveform
-                if let Some(mut s) = state_for_callback.try_lock() {
-                    // Update current participant immediately from audio callback
-                    s.current_participant_idx = current_participant;
+                    // Update state with current playing participant and waveform
+                    if let Some(mut s) = state_for_callback.try_lock() {
+                        // Update current participant immediately from audio callback
+                        s.current_participant_idx = current_participant;
 
-                    // Store the most recent output samples, stretching if needed
-                    let samples: Vec<f32> = data.iter().copied().collect();
-                    if samples.len() >= 512 {
-                        s.output_waveform = samples[..512].to_vec();
-                    } else if !samples.is_empty() {
-                        // Stretch samples to fill 512 by repeating/interpolating
-                        s.output_waveform.clear();
-                        s.output_waveform.reserve(512);
-                        let ratio = samples.len() as f32 / 512.0;
-                        for i in 0..512 {
-                            let src_idx = ((i as f32 * ratio) as usize).min(samples.len() - 1);
-                            s.output_waveform.push(samples[src_idx]);
+                        // Store the most recent output samples, stretching if needed
+                        let samples: Vec<f32> = data.iter().copied().collect();
+                        if samples.len() >= 512 {
+                            s.output_waveform = samples[..512].to_vec();
+                        } else if !samples.is_empty() {
+                            // Stretch samples to fill 512 by repeating/interpolating
+                            s.output_waveform.clear();
+                            s.output_waveform.reserve(512);
+                            let ratio = samples.len() as f32 / 512.0;
+                            for i in 0..512 {
+                                let src_idx = ((i as f32 * ratio) as usize).min(samples.len() - 1);
+                                s.output_waveform.push(samples[src_idx]);
+                            }
+                        } else {
+                            s.output_waveform = vec![0.0; 512];
                         }
-                    } else {
-                        s.output_waveform = vec![0.0; 512];
+                    }
+                } else {
+                    for sample in data.iter_mut() {
+                        *sample = 0.0;
                     }
                 }
-            } else {
-                for sample in data.iter_mut() {
-                    *sample = 0.0;
-                }
-            }
-        },
-        move |err| {
-            log::error!("Audio stream error: {}", err);
-        },
-        None,
-    ).map_err(|e| format!("Failed to build audio stream: {}", e))?;
+            },
+            move |err| {
+                log::error!("Audio stream error: {}", err);
+            },
+            None,
+        )
+        .map_err(|e| format!("Failed to build audio stream: {}", e))?;
 
-    stream.play().map_err(|e| format!("Failed to start audio stream: {}", e))?;
+    stream
+        .play()
+        .map_err(|e| format!("Failed to start audio stream: {}", e))?;
 
     // Process commands
     loop {

@@ -3,15 +3,13 @@
 //! Manages the lifecycle of dora bridges and routes data between
 //! the dora dataflow and MoFA widgets.
 
-use crossbeam_channel::{Receiver, Sender, bounded};
+use crossbeam_channel::{bounded, Receiver, Sender};
 use mofa_dora_bridge::{
-    controller::DataflowController,
-    dispatcher::DynamicNodeDispatcher,
-    SharedDoraState,
+    controller::DataflowController, dispatcher::DynamicNodeDispatcher, SharedDoraState,
 };
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 
 /// Commands sent from UI to dora integration
@@ -82,7 +80,13 @@ impl DoraIntegration {
 
         // Spawn worker thread
         let handle = thread::spawn(move || {
-            Self::run_worker(running_clone, shared_dora_state_clone, command_rx, event_tx, stop_rx);
+            Self::run_worker(
+                running_clone,
+                shared_dora_state_clone,
+                command_rx,
+                event_tx,
+                stop_rx,
+            );
         });
 
         Self {
@@ -199,7 +203,10 @@ impl DoraIntegration {
             // Process commands
             while let Ok(cmd) = command_rx.try_recv() {
                 match cmd {
-                    DoraCommand::StartDataflow { dataflow_path, env_vars } => {
+                    DoraCommand::StartDataflow {
+                        dataflow_path,
+                        env_vars,
+                    } => {
                         log::info!("Starting dataflow: {:?}", dataflow_path);
 
                         // Set environment variables in both process env and controller
@@ -224,7 +231,8 @@ impl DoraIntegration {
                                         log::info!("Dataflow started: {}", dataflow_id);
                                         running.store(true, Ordering::Release);
                                         dataflow_start_time = Some(std::time::Instant::now());
-                                        let _ = event_tx.send(DoraEvent::DataflowStarted { dataflow_id });
+                                        let _ = event_tx
+                                            .send(DoraEvent::DataflowStarted { dataflow_id });
                                         dispatcher = Some(disp);
                                     }
                                     Err(e) => {
@@ -285,7 +293,10 @@ impl DoraIntegration {
                         if let Some(ref disp) = dispatcher {
                             if let Some(bridge) = disp.get_bridge("mofa-prompt-input") {
                                 log::info!("Sending prompt via bridge: {}", message);
-                                if let Err(e) = bridge.send("prompt", mofa_dora_bridge::DoraData::Text(message.clone())) {
+                                if let Err(e) = bridge.send(
+                                    "prompt",
+                                    mofa_dora_bridge::DoraData::Text(message.clone()),
+                                ) {
                                     log::error!("Failed to send prompt: {}", e);
                                 }
                             } else {
@@ -299,7 +310,9 @@ impl DoraIntegration {
                             if let Some(bridge) = disp.get_bridge("mofa-prompt-input") {
                                 log::info!("Sending control command: {}", command);
                                 let ctrl = mofa_dora_bridge::ControlCommand::new(&command);
-                                if let Err(e) = bridge.send("control", mofa_dora_bridge::DoraData::Control(ctrl)) {
+                                if let Err(e) = bridge
+                                    .send("control", mofa_dora_bridge::DoraData::Control(ctrl))
+                                {
                                     log::error!("Failed to send control: {}", e);
                                 }
                             } else {
@@ -314,7 +327,9 @@ impl DoraIntegration {
                             if let Some(bridge) = disp.get_bridge("mofa-audio-player") {
                                 if let Err(e) = bridge.send(
                                     "buffer_status",
-                                    mofa_dora_bridge::DoraData::Json(serde_json::json!(fill_percentage)),
+                                    mofa_dora_bridge::DoraData::Json(serde_json::json!(
+                                        fill_percentage
+                                    )),
                                 ) {
                                     log::debug!("Failed to send buffer status to bridge: {}", e);
                                 }
