@@ -585,7 +585,7 @@ impl MoFaFMScreen {
         match RoleConfig::load(&student1_path) {
             Ok(config) => {
                 self.populate_role_dropdown(cx, "student1", &config.models, &config.default_model);
-                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_input))
+                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_scroll.student1_prompt_wrapper.student1_prompt_input))
                     .set_text(cx, &config.system_prompt);
                 self.student1_config = config;
                 ::log::info!("Loaded student1 config");
@@ -598,7 +598,7 @@ impl MoFaFMScreen {
         match RoleConfig::load(&student2_path) {
             Ok(config) => {
                 self.populate_role_dropdown(cx, "student2", &config.models, &config.default_model);
-                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_input))
+                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_scroll.student2_prompt_wrapper.student2_prompt_input))
                     .set_text(cx, &config.system_prompt);
                 self.student2_config = config;
                 ::log::info!("Loaded student2 config");
@@ -611,7 +611,7 @@ impl MoFaFMScreen {
         match RoleConfig::load(&tutor_path) {
             Ok(config) => {
                 self.populate_role_dropdown(cx, "tutor", &config.models, &config.default_model);
-                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_input))
+                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_scroll.tutor_prompt_wrapper.tutor_prompt_input))
                     .set_text(cx, &config.system_prompt);
                 self.tutor_config = config;
                 ::log::info!("Loaded tutor config");
@@ -647,15 +647,15 @@ impl MoFaFMScreen {
         let (config, prompt_input_id) = match role {
             "student1" => (
                 &mut self.student1_config,
-                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_input)
+                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_scroll.student1_prompt_wrapper.student1_prompt_input)
             ),
             "student2" => (
                 &mut self.student2_config,
-                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_input)
+                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_scroll.student2_prompt_wrapper.student2_prompt_input)
             ),
             "tutor" => (
                 &mut self.tutor_config,
-                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_input)
+                ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_scroll.tutor_prompt_wrapper.tutor_prompt_input)
             ),
             _ => return,
         };
@@ -857,7 +857,7 @@ impl MoFaFMScreen {
                 self.context_content = content.clone();
                 self.context_loaded = true;
                 // Set the TextInput text
-                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input))
+                self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input_scroll.context_input_wrapper.context_input))
                     .set_text(cx, &content);
                 // Update status to "Loaded"
                 self.view.label(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_header.context_status))
@@ -876,7 +876,7 @@ impl MoFaFMScreen {
     /// Save context editor content to study-context.md
     fn save_context(&mut self, cx: &mut Cx) {
         let context_path = self.get_context_path();
-        let content = self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input))
+        let content = self.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input_scroll.context_input_wrapper.context_input))
             .text();
 
         match std::fs::write(&context_path, &content) {
@@ -1108,7 +1108,7 @@ impl StateChangeListener for MoFaFMScreenRef {
             inner.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });
-            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_input)).apply_over(cx, live!{
+            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_scroll.student1_prompt_wrapper.student1_prompt_input)).apply_over(cx, live!{
                 draw_text: { dark_mode: (dark_mode) }
                 draw_cursor: { dark_mode: (dark_mode) }
             });
@@ -1128,7 +1128,7 @@ impl StateChangeListener for MoFaFMScreenRef {
             inner.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });
-            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_input)).apply_over(cx, live!{
+            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_scroll.student2_prompt_wrapper.student2_prompt_input)).apply_over(cx, live!{
                 draw_text: { dark_mode: (dark_mode) }
                 draw_cursor: { dark_mode: (dark_mode) }
             });
@@ -1148,7 +1148,7 @@ impl StateChangeListener for MoFaFMScreenRef {
             inner.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });
-            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_input)).apply_over(cx, live!{
+            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_scroll.tutor_prompt_wrapper.tutor_prompt_input)).apply_over(cx, live!{
                 draw_text: { dark_mode: (dark_mode) }
                 draw_cursor: { dark_mode: (dark_mode) }
             });
@@ -1162,7 +1162,7 @@ impl StateChangeListener for MoFaFMScreenRef {
             inner.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container)).apply_over(cx, live!{
                 draw_bg: { dark_mode: (dark_mode) }
             });
-            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input)).apply_over(cx, live!{
+            inner.view.text_input(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input_scroll.context_input_wrapper.context_input)).apply_over(cx, live!{
                 draw_text: { dark_mode: (dark_mode) }
                 draw_cursor: { dark_mode: (dark_mode) }
             });

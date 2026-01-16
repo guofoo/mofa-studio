@@ -1139,8 +1139,6 @@ live_design! {
 
                                     student1_prompt_container = <RoundedView> {
                                         width: Fill, height: 120
-                                        clip_x: true
-                                        clip_y: true
                                         show_bg: true
                                         draw_bg: {
                                             instance dark_mode: 0.0
@@ -1156,52 +1154,68 @@ live_design! {
                                             }
                                         }
 
-                                        student1_prompt_input = <TextInput> {
+                                        student1_prompt_scroll = <ScrollYView> {
                                             width: Fill, height: Fill
-                                            padding: 8
-                                            draw_bg: {
-                                                fn pixel(self) -> vec4 {
-                                                    return vec4(0.0, 0.0, 0.0, 0.0);
+                                            scroll_bars: <ScrollBars> {
+                                                show_scroll_x: false
+                                                show_scroll_y: true
+                                                scroll_bar_y: {
+                                                    bar_size: 6.0
+                                                    smoothing: 0.15
                                                 }
                                             }
-                                            draw_text: {
-                                                instance dark_mode: 0.0
-                                                text_style: <FONT_REGULAR>{ font_size: 11.0 }
-                                                fn get_color(self) -> vec4 {
-                                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
-                                                }
-                                            }
-                                            draw_selection: {
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
-                                                    sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            draw_cursor: {
-                                                instance focus: 0.0
-                                                instance blink: 0.0
-                                                instance dark_mode: 0.0
-                                                uniform border_radius: 0.5
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
-                                                    let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
-                                                    sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            animator: {
-                                                blink = {
-                                                    default: off
-                                                    off = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 0.0} }
+
+                                            student1_prompt_wrapper = <View> {
+                                                width: Fill, height: Fit
+                                                padding: 8
+
+                                                student1_prompt_input = <TextInput> {
+                                                    width: Fill, height: Fit
+                                                    draw_bg: {
+                                                        fn pixel(self) -> vec4 {
+                                                            return vec4(0.0, 0.0, 0.0, 0.0);
+                                                        }
                                                     }
-                                                    on = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 1.0} }
+                                                    draw_text: {
+                                                        instance dark_mode: 0.0
+                                                        text_style: <FONT_REGULAR>{ font_size: 11.0 }
+                                                        fn get_color(self) -> vec4 {
+                                                            return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                                        }
+                                                    }
+                                                    draw_selection: {
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
+                                                            sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    draw_cursor: {
+                                                        instance focus: 0.0
+                                                        instance blink: 0.0
+                                                        instance dark_mode: 0.0
+                                                        uniform border_radius: 0.5
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                                                            let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
+                                                            sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    animator: {
+                                                        blink = {
+                                                            default: off
+                                                            off = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 0.0} }
+                                                            }
+                                                            on = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 1.0} }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1382,8 +1396,6 @@ live_design! {
 
                                     student2_prompt_container = <RoundedView> {
                                         width: Fill, height: 120
-                                        clip_x: true
-                                        clip_y: true
                                         show_bg: true
                                         draw_bg: {
                                             instance dark_mode: 0.0
@@ -1399,52 +1411,68 @@ live_design! {
                                             }
                                         }
 
-                                        student2_prompt_input = <TextInput> {
+                                        student2_prompt_scroll = <ScrollYView> {
                                             width: Fill, height: Fill
-                                            padding: 8
-                                            draw_bg: {
-                                                fn pixel(self) -> vec4 {
-                                                    return vec4(0.0, 0.0, 0.0, 0.0);
+                                            scroll_bars: <ScrollBars> {
+                                                show_scroll_x: false
+                                                show_scroll_y: true
+                                                scroll_bar_y: {
+                                                    bar_size: 6.0
+                                                    smoothing: 0.15
                                                 }
                                             }
-                                            draw_text: {
-                                                instance dark_mode: 0.0
-                                                text_style: <FONT_REGULAR>{ font_size: 11.0 }
-                                                fn get_color(self) -> vec4 {
-                                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
-                                                }
-                                            }
-                                            draw_selection: {
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
-                                                    sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            draw_cursor: {
-                                                instance focus: 0.0
-                                                instance blink: 0.0
-                                                instance dark_mode: 0.0
-                                                uniform border_radius: 0.5
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
-                                                    let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
-                                                    sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            animator: {
-                                                blink = {
-                                                    default: off
-                                                    off = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 0.0} }
+
+                                            student2_prompt_wrapper = <View> {
+                                                width: Fill, height: Fit
+                                                padding: 8
+
+                                                student2_prompt_input = <TextInput> {
+                                                    width: Fill, height: Fit
+                                                    draw_bg: {
+                                                        fn pixel(self) -> vec4 {
+                                                            return vec4(0.0, 0.0, 0.0, 0.0);
+                                                        }
                                                     }
-                                                    on = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 1.0} }
+                                                    draw_text: {
+                                                        instance dark_mode: 0.0
+                                                        text_style: <FONT_REGULAR>{ font_size: 11.0 }
+                                                        fn get_color(self) -> vec4 {
+                                                            return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                                        }
+                                                    }
+                                                    draw_selection: {
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
+                                                            sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    draw_cursor: {
+                                                        instance focus: 0.0
+                                                        instance blink: 0.0
+                                                        instance dark_mode: 0.0
+                                                        uniform border_radius: 0.5
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                                                            let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
+                                                            sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    animator: {
+                                                        blink = {
+                                                            default: off
+                                                            off = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 0.0} }
+                                                            }
+                                                            on = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 1.0} }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1624,8 +1652,6 @@ live_design! {
 
                                     tutor_prompt_container = <RoundedView> {
                                         width: Fill, height: 120
-                                        clip_x: true
-                                        clip_y: true
                                         show_bg: true
                                         draw_bg: {
                                             instance dark_mode: 0.0
@@ -1641,52 +1667,68 @@ live_design! {
                                             }
                                         }
 
-                                        tutor_prompt_input = <TextInput> {
+                                        tutor_prompt_scroll = <ScrollYView> {
                                             width: Fill, height: Fill
-                                            padding: 8
-                                            draw_bg: {
-                                                fn pixel(self) -> vec4 {
-                                                    return vec4(0.0, 0.0, 0.0, 0.0);
+                                            scroll_bars: <ScrollBars> {
+                                                show_scroll_x: false
+                                                show_scroll_y: true
+                                                scroll_bar_y: {
+                                                    bar_size: 6.0
+                                                    smoothing: 0.15
                                                 }
                                             }
-                                            draw_text: {
-                                                instance dark_mode: 0.0
-                                                text_style: <FONT_REGULAR>{ font_size: 11.0 }
-                                                fn get_color(self) -> vec4 {
-                                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
-                                                }
-                                            }
-                                            draw_selection: {
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
-                                                    sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            draw_cursor: {
-                                                instance focus: 0.0
-                                                instance blink: 0.0
-                                                instance dark_mode: 0.0
-                                                uniform border_radius: 0.5
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
-                                                    let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
-                                                    sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            animator: {
-                                                blink = {
-                                                    default: off
-                                                    off = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 0.0} }
+
+                                            tutor_prompt_wrapper = <View> {
+                                                width: Fill, height: Fit
+                                                padding: 8
+
+                                                tutor_prompt_input = <TextInput> {
+                                                    width: Fill, height: Fit
+                                                    draw_bg: {
+                                                        fn pixel(self) -> vec4 {
+                                                            return vec4(0.0, 0.0, 0.0, 0.0);
+                                                        }
                                                     }
-                                                    on = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 1.0} }
+                                                    draw_text: {
+                                                        instance dark_mode: 0.0
+                                                        text_style: <FONT_REGULAR>{ font_size: 11.0 }
+                                                        fn get_color(self) -> vec4 {
+                                                            return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                                        }
+                                                    }
+                                                    draw_selection: {
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
+                                                            sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    draw_cursor: {
+                                                        instance focus: 0.0
+                                                        instance blink: 0.0
+                                                        instance dark_mode: 0.0
+                                                        uniform border_radius: 0.5
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                                                            let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
+                                                            sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    animator: {
+                                                        blink = {
+                                                            default: off
+                                                            off = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 0.0} }
+                                                            }
+                                                            on = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 1.0} }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1819,8 +1861,6 @@ live_design! {
 
                                     context_input_container = <RoundedView> {
                                         width: Fill, height: 200
-                                        clip_x: true
-                                        clip_y: true
                                         show_bg: true
                                         draw_bg: {
                                             instance dark_mode: 0.0
@@ -1836,52 +1876,68 @@ live_design! {
                                             }
                                         }
 
-                                        context_input = <TextInput> {
+                                        context_input_scroll = <ScrollYView> {
                                             width: Fill, height: Fill
-                                            padding: 8
-                                            draw_bg: {
-                                                fn pixel(self) -> vec4 {
-                                                    return vec4(0.0, 0.0, 0.0, 0.0);
+                                            scroll_bars: <ScrollBars> {
+                                                show_scroll_x: false
+                                                show_scroll_y: true
+                                                scroll_bar_y: {
+                                                    bar_size: 6.0
+                                                    smoothing: 0.15
                                                 }
                                             }
-                                            draw_text: {
-                                                instance dark_mode: 0.0
-                                                text_style: <FONT_REGULAR>{ font_size: 11.0 }
-                                                fn get_color(self) -> vec4 {
-                                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
-                                                }
-                                            }
-                                            draw_selection: {
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
-                                                    sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            draw_cursor: {
-                                                instance focus: 0.0
-                                                instance blink: 0.0
-                                                instance dark_mode: 0.0
-                                                uniform border_radius: 0.5
-                                                fn pixel(self) -> vec4 {
-                                                    let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                                    sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
-                                                    let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
-                                                    sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
-                                                    return sdf.result;
-                                                }
-                                            }
-                                            animator: {
-                                                blink = {
-                                                    default: off
-                                                    off = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 0.0} }
+
+                                            context_input_wrapper = <View> {
+                                                width: Fill, height: Fit
+                                                padding: 8
+
+                                                context_input = <TextInput> {
+                                                    width: Fill, height: Fit
+                                                    draw_bg: {
+                                                        fn pixel(self) -> vec4 {
+                                                            return vec4(0.0, 0.0, 0.0, 0.0);
+                                                        }
                                                     }
-                                                    on = {
-                                                        from: {all: Forward {duration: 0.5}}
-                                                        apply: { draw_cursor: {blink: 1.0} }
+                                                    draw_text: {
+                                                        instance dark_mode: 0.0
+                                                        text_style: <FONT_REGULAR>{ font_size: 11.0 }
+                                                        fn get_color(self) -> vec4 {
+                                                            return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                                        }
+                                                    }
+                                                    draw_selection: {
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
+                                                            sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    draw_cursor: {
+                                                        instance focus: 0.0
+                                                        instance blink: 0.0
+                                                        instance dark_mode: 0.0
+                                                        uniform border_radius: 0.5
+                                                        fn pixel(self) -> vec4 {
+                                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                                            sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, self.border_radius);
+                                                            let cursor_color = mix(vec4(0.1, 0.1, 0.12, 1.0), vec4(0.9, 0.9, 0.95, 1.0), self.dark_mode);
+                                                            sdf.fill(mix(vec4(0.0, 0.0, 0.0, 0.0), cursor_color, (1.0 - self.blink) * self.focus));
+                                                            return sdf.result;
+                                                        }
+                                                    }
+                                                    animator: {
+                                                        blink = {
+                                                            default: off
+                                                            off = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 0.0} }
+                                                            }
+                                                            on = {
+                                                                from: {all: Forward {duration: 0.5}}
+                                                                apply: { draw_cursor: {blink: 1.0} }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
