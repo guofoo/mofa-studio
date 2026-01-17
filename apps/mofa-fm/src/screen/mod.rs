@@ -940,40 +940,31 @@ impl MoFaFMScreen {
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config))
                 .set_visible(cx, true);
 
-            // Reset parent container heights to Fit
+            // Re-enable outer scroll bar
+            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll))
+                .apply_over(cx, live!{ scroll_bars: { show_scroll_y: true } });
+
+            // Reset container heights to Fit/normal
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content))
                 .apply_over(cx, live!{ height: Fit });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section))
                 .apply_over(cx, live!{ height: Fit });
-
-            // Reset all role config and editor container heights to normal and disable horizontal scroll
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section))
                 .apply_over(cx, live!{ height: Fit });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container))
                 .apply_over(cx, live!{ height: 200 });
-            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input_scroll))
-                .apply_over(cx, live!{ scroll_bars: { show_scroll_x: false } });
-
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config))
                 .apply_over(cx, live!{ height: Fit });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container))
                 .apply_over(cx, live!{ height: 120 });
-            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_scroll))
-                .apply_over(cx, live!{ scroll_bars: { show_scroll_x: false } });
-
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config))
                 .apply_over(cx, live!{ height: Fit });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container))
                 .apply_over(cx, live!{ height: 120 });
-            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_scroll))
-                .apply_over(cx, live!{ scroll_bars: { show_scroll_x: false } });
-
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config))
                 .apply_over(cx, live!{ height: Fit });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container))
                 .apply_over(cx, live!{ height: 120 });
-            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_scroll))
-                .apply_over(cx, live!{ scroll_bars: { show_scroll_x: false } });
 
             // Update all maximize buttons to show expand icon (maximized: 0.0)
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_header.context_maximize_btn))
@@ -1018,22 +1009,23 @@ impl MoFaFMScreen {
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config))
                 .set_visible(cx, show_tutor);
 
-            // Set parent containers to Fill height so editor can expand
+            // Disable outer scroll and let inner editor scroll handle everything
+            // Hide the outer settings_scroll's scroll bar
+            self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll))
+                .apply_over(cx, live!{ scroll_bars: { show_scroll_y: false } });
+
+            // Set containers to Fill so editor takes entire space
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content))
                 .apply_over(cx, live!{ height: Fill });
             self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section))
                 .apply_over(cx, live!{ height: Fill });
 
-            // Keep all role header elements visible (label, model dropdown, voice dropdown)
-            // Expand the role config and editor container to fill the screen
             match editor {
                 "context" => {
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section))
                         .apply_over(cx, live!{ height: Fill });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container))
                         .apply_over(cx, live!{ height: Fill });
-                    self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_input_container.context_input_scroll))
-                        .apply_over(cx, live!{ scroll_bars: { show_scroll_x: true, show_scroll_y: true } });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.context_section.context_header.context_maximize_btn))
                         .apply_over(cx, live!{ draw_bg: { maximized: 1.0 } });
                 }
@@ -1042,8 +1034,6 @@ impl MoFaFMScreen {
                         .apply_over(cx, live!{ height: Fill });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container))
                         .apply_over(cx, live!{ height: Fill });
-                    self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_prompt_container.student1_prompt_scroll))
-                        .apply_over(cx, live!{ scroll_bars: { show_scroll_x: true, show_scroll_y: true } });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student1_config.student1_header.student1_maximize_btn))
                         .apply_over(cx, live!{ draw_bg: { maximized: 1.0 } });
                 }
@@ -1052,8 +1042,6 @@ impl MoFaFMScreen {
                         .apply_over(cx, live!{ height: Fill });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container))
                         .apply_over(cx, live!{ height: Fill });
-                    self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_prompt_container.student2_prompt_scroll))
-                        .apply_over(cx, live!{ scroll_bars: { show_scroll_x: true, show_scroll_y: true } });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.student2_config.student2_header.student2_maximize_btn))
                         .apply_over(cx, live!{ draw_bg: { maximized: 1.0 } });
                 }
@@ -1062,8 +1050,6 @@ impl MoFaFMScreen {
                         .apply_over(cx, live!{ height: Fill });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container))
                         .apply_over(cx, live!{ height: Fill });
-                    self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_prompt_container.tutor_prompt_scroll))
-                        .apply_over(cx, live!{ scroll_bars: { show_scroll_x: true, show_scroll_y: true } });
                     self.view.view(ids!(left_column.settings_tab_content.settings_panel.settings_scroll.settings_content.role_section.tutor_config.tutor_header.tutor_maximize_btn))
                         .apply_over(cx, live!{ draw_bg: { maximized: 1.0 } });
                 }
