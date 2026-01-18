@@ -32,6 +32,12 @@ pub enum DoraCommand {
     SendControl { command: String },
     /// Update buffer status
     UpdateBufferStatus { fill_percentage: f64 },
+    /// Start AEC mic recording
+    StartRecording,
+    /// Stop AEC mic recording
+    StopRecording,
+    /// Enable/disable AEC (echo cancellation)
+    SetAecEnabled { enabled: bool },
 }
 
 /// Events sent from dora integration to UI
@@ -160,6 +166,21 @@ impl DoraIntegration {
         self.send_command(DoraCommand::SendControl {
             command: command.into(),
         })
+    }
+
+    /// Start AEC mic recording
+    pub fn start_recording(&self) -> bool {
+        self.send_command(DoraCommand::StartRecording)
+    }
+
+    /// Stop AEC mic recording
+    pub fn stop_recording(&self) -> bool {
+        self.send_command(DoraCommand::StopRecording)
+    }
+
+    /// Enable/disable AEC (echo cancellation)
+    pub fn set_aec_enabled(&self, enabled: bool) -> bool {
+        self.send_command(DoraCommand::SetAecEnabled { enabled })
     }
 
     /// Poll for events (non-blocking)
@@ -333,6 +354,54 @@ impl DoraIntegration {
                                 ) {
                                     log::debug!("Failed to send buffer status to bridge: {}", e);
                                 }
+                            }
+                        }
+                    }
+
+                    DoraCommand::StartRecording => {
+                        if let Some(ref disp) = dispatcher {
+                            if let Some(bridge) = disp.get_bridge("mofa-mic-input") {
+                                log::info!("Sending start_recording to AEC bridge");
+                                if let Err(e) = bridge.send(
+                                    "control",
+                                    mofa_dora_bridge::DoraData::Json(serde_json::json!({"action": "start_recording"})),
+                                ) {
+                                    log::error!("Failed to send start_recording: {}", e);
+                                }
+                            } else {
+                                log::warn!("mofa-mic-input bridge not found");
+                            }
+                        }
+                    }
+
+                    DoraCommand::StopRecording => {
+                        if let Some(ref disp) = dispatcher {
+                            if let Some(bridge) = disp.get_bridge("mofa-mic-input") {
+                                log::info!("Sending stop_recording to AEC bridge");
+                                if let Err(e) = bridge.send(
+                                    "control",
+                                    mofa_dora_bridge::DoraData::Json(serde_json::json!({"action": "stop_recording"})),
+                                ) {
+                                    log::error!("Failed to send stop_recording: {}", e);
+                                }
+                            } else {
+                                log::warn!("mofa-mic-input bridge not found");
+                            }
+                        }
+                    }
+
+                    DoraCommand::SetAecEnabled { enabled } => {
+                        if let Some(ref disp) = dispatcher {
+                            if let Some(bridge) = disp.get_bridge("mofa-mic-input") {
+                                log::info!("Setting AEC enabled: {}", enabled);
+                                if let Err(e) = bridge.send(
+                                    "control",
+                                    mofa_dora_bridge::DoraData::Json(serde_json::json!({"action": "set_aec_enabled", "enabled": enabled})),
+                                ) {
+                                    log::error!("Failed to set AEC enabled: {}", e);
+                                }
+                            } else {
+                                log::warn!("mofa-mic-input bridge not found");
                             }
                         }
                     }

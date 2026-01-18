@@ -1,0 +1,11 @@
+[package]
+name = "mofa-ui"
+version.workspace = true
+edition.workspace = true
+description = "Shared UI component library for MoFA Studio applications"
+
+[dependencies]
+makepad-widgets.workspace = true
+mofa-dora-bridge = { path = "../mofa-dora-bridge" }
+parking_lot.workspace = true
+log.workspace = true

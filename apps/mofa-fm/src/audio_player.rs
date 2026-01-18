@@ -1,6 +1,74 @@
 //! Audio Player Module - Circular buffer audio playback using cpal
 //!
 //! Adapted from conference-dashboard for mofa-fm.
+//!
+//! # Force Mute for Instant Audio Interrupt
+//!
+//! When a human starts speaking, the AI audio must stop immediately (< 1ms latency).
+//! This is achieved through a shared `force_mute: Arc<AtomicBool>` flag:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                     Force Mute Architecture                         │
+//! │                                                                     │
+//! │  AudioPlayer                                                        │
+//! │    │                                                                │
+//! │    ├── force_mute: Arc<AtomicBool>  ←─┐                             │
+//! │    │                                  │ Shared via                  │
+//! │    └── audio_callback() ─────────────┤ register_force_mute()        │
+//! │          │                            │                             │
+//! │          │ checks force_mute          │                             │
+//! │          │ before reading buffer      ▼                             │
+//! │          │                    SharedDoraState.AudioState            │
+//! │          │                      │                                   │
+//! │          ▼                      │ signal_clear() sets               │
+//! │    if force_mute == true:       │ force_mute = true                 │
+//! │      output silence             │                                   │
+//! │    else:                        ▼                                   │
+//! │      read from buffer    AudioPlayerBridge (Dora event loop)        │
+//! │                                 │                                   │
+//! │                                 │ receives reset input              │
+//! │                                 │ from controller                   │
+//! │                                 ▼                                   │
+//! │                          Human speaks → speech_started → reset      │
+//! └─────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ## Setup
+//!
+//! The UI must register the force_mute flag with SharedDoraState after creating
+//! the AudioPlayer:
+//!
+//! ```rust,ignore
+//! // In UI initialization (e.g., init_dora):
+//! if let Some(ref player) = self.audio_player {
+//!     integration.shared_dora_state().audio.register_force_mute(
+//!         player.force_mute_flag()
+//!     );
+//! }
+//! ```
+//!
+//! ## Audio Callback Behavior
+//!
+//! The cpal audio callback checks `force_mute` FIRST before reading the buffer:
+//!
+//! ```rust,ignore
+//! move |data: &mut [f32], _| {
+//!     // Check force_mute first - instant silencing for human interrupt
+//!     if force_mute_clone.load(Ordering::Acquire) {
+//!         for sample in data.iter_mut() {
+//!             *sample = 0.0;  // Output silence
+//!         }
+//!         return;
+//!     }
+//!     // Normal buffer read...
+//! }
+//! ```
+//!
+//! ## Reset Clears force_mute
+//!
+//! The `AudioCommand::Reset` handler clears `force_mute` after resetting the buffer,
+//! allowing playback to resume when new audio arrives.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -210,6 +278,9 @@ pub struct AudioPlayer {
     command_tx: Sender<AudioCommand>,
     state: Arc<Mutex<SharedAudioState>>,
     sample_rate: u32,
+    /// Instant mute flag - checked by audio callback for immediate silence
+    /// Used for human speech interrupt to bypass command channel latency
+    force_mute: Arc<AtomicBool>,
 }
 
 impl AudioPlayer {
@@ -225,10 +296,14 @@ impl AudioPlayer {
             output_waveform: vec![0.0; 512],
         }));
 
+        // Force mute flag for instant silencing (human speech interrupt)
+        let force_mute = Arc::new(AtomicBool::new(false));
+
         let state_clone = Arc::clone(&state);
+        let force_mute_clone = Arc::clone(&force_mute);
 
         std::thread::spawn(move || {
-            if let Err(e) = run_audio_thread(sample_rate, command_rx, state_clone) {
+            if let Err(e) = run_audio_thread(sample_rate, command_rx, state_clone, force_mute_clone) {
                 log::error!("Audio thread error: {}", e);
             }
         });
@@ -237,6 +312,7 @@ impl AudioPlayer {
             command_tx,
             state,
             sample_rate,
+            force_mute,
         })
     }
 
@@ -293,7 +369,21 @@ impl AudioPlayer {
 
     /// Reset the buffer
     pub fn reset(&self) {
+        // Immediately mute audio output before clearing buffer
+        self.force_mute.store(true, Ordering::Release);
         let _ = self.command_tx.send(AudioCommand::Reset);
+    }
+
+    /// Immediately mute audio output (for human speech interrupt)
+    /// This is checked by the audio callback directly, bypassing command channel
+    pub fn force_mute(&self) {
+        self.force_mute.store(true, Ordering::Release);
+        log::info!("🔇 Audio force muted (instant)");
+    }
+
+    /// Get the force_mute flag Arc for sharing with other components
+    pub fn force_mute_flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.force_mute)
     }
 
     /// Smart reset - keep only audio for the specified question_id
@@ -342,6 +432,7 @@ fn run_audio_thread(
     sample_rate: u32,
     command_rx: Receiver<AudioCommand>,
     state: Arc<Mutex<SharedAudioState>>,
+    force_mute: Arc<AtomicBool>,
 ) -> Result<(), String> {
     let buffer_seconds = 30.0; // 30 second audio buffer
     let buffer = Arc::new(Mutex::new(CircularAudioBuffer::new(
@@ -369,11 +460,21 @@ fn run_audio_thread(
     let buffer_clone = Arc::clone(&buffer);
     let is_playing_clone = Arc::clone(&is_playing);
     let state_for_callback = Arc::clone(&state);
+    let force_mute_clone = Arc::clone(&force_mute);
 
     let stream = device
         .build_output_stream(
             &config,
             move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                // Check force_mute first - this provides instant silencing for human interrupt
+                if force_mute_clone.load(Ordering::Acquire) {
+                    // Output silence immediately
+                    for sample in data.iter_mut() {
+                        *sample = 0.0;
+                    }
+                    return;
+                }
+
                 if is_playing_clone.load(Ordering::Relaxed) {
                     let mut buf = buffer_clone.lock();
                     buf.read(data);
@@ -432,7 +533,9 @@ fn run_audio_thread(
             Ok(AudioCommand::Reset) => {
                 is_playing.store(false, Ordering::Relaxed);
                 buffer.lock().reset();
-                log::info!("Audio buffer reset");
+                // Clear force_mute after buffer is reset - playback can resume when new audio arrives
+                force_mute.store(false, Ordering::Release);
+                log::info!("Audio buffer reset (force_mute cleared)");
             }
             Ok(AudioCommand::SmartReset(question_id)) => {
                 buffer.lock().smart_reset(&question_id);

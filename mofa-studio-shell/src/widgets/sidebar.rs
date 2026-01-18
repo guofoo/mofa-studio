@@ -46,13 +46,38 @@ live_design! {
         icon_walk: {width: 10, height: 10}
     }
 
-    // Custom sidebar button using Button instead of RadioButton - with dark mode
+    // Custom sidebar button using Button instead of RadioButton - with dark mode and hover animation
     pub SidebarMenuButton = <Button> {
         width: Fill, height: Fit
         padding: {top: 12, bottom: 12, left: 12, right: 12}
         margin: 0
         align: {x: 0.0, y: 0.5}
         icon_walk: {width: 20, height: 20, margin: {right: 12}}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
 
         draw_bg: {
             instance hover: 0.0

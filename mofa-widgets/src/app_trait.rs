@@ -183,3 +183,129 @@ pub trait StateChangeListener {
     /// * `dark_mode` - Dark mode value (0.0 = light, 1.0 = dark)
     fn on_dark_mode_change(&self, cx: &mut Cx, dark_mode: f64);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_app_info(id: &'static str) -> AppInfo {
+        AppInfo {
+            name: "Test App",
+            id,
+            description: "A test app for unit tests",
+        }
+    }
+
+    #[test]
+    fn test_app_info_fields() {
+        let info = AppInfo {
+            name: "MoFA FM",
+            id: "mofa-fm",
+            description: "AI-powered audio streaming",
+        };
+
+        assert_eq!(info.name, "MoFA FM");
+        assert_eq!(info.id, "mofa-fm");
+        assert_eq!(info.description, "AI-powered audio streaming");
+    }
+
+    #[test]
+    fn test_app_info_clone() {
+        let info = create_test_app_info("test-app");
+        let cloned = info.clone();
+
+        assert_eq!(cloned.name, info.name);
+        assert_eq!(cloned.id, info.id);
+        assert_eq!(cloned.description, info.description);
+    }
+
+    #[test]
+    fn test_app_registry_new() {
+        let registry = AppRegistry::new();
+
+        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 0);
+    }
+
+    #[test]
+    fn test_app_registry_default() {
+        let registry = AppRegistry::default();
+
+        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 0);
+    }
+
+    #[test]
+    fn test_app_registry_register() {
+        let mut registry = AppRegistry::new();
+
+        registry.register(create_test_app_info("app1"));
+        assert_eq!(registry.len(), 1);
+        assert!(!registry.is_empty());
+
+        registry.register(create_test_app_info("app2"));
+        assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn test_app_registry_apps() {
+        let mut registry = AppRegistry::new();
+        registry.register(create_test_app_info("app1"));
+        registry.register(create_test_app_info("app2"));
+
+        let apps = registry.apps();
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].id, "app1");
+        assert_eq!(apps[1].id, "app2");
+    }
+
+    #[test]
+    fn test_app_registry_find_by_id() {
+        let mut registry = AppRegistry::new();
+        registry.register(AppInfo {
+            name: "First App",
+            id: "first",
+            description: "The first app",
+        });
+        registry.register(AppInfo {
+            name: "Second App",
+            id: "second",
+            description: "The second app",
+        });
+
+        // Found
+        let found = registry.find_by_id("first");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "First App");
+
+        let found = registry.find_by_id("second");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "Second App");
+
+        // Not found
+        assert!(registry.find_by_id("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_app_registry_find_by_id_empty() {
+        let registry = AppRegistry::new();
+
+        assert!(registry.find_by_id("any").is_none());
+    }
+
+    #[test]
+    fn test_app_registry_len_and_is_empty() {
+        let mut registry = AppRegistry::new();
+
+        assert!(registry.is_empty());
+        assert_eq!(registry.len(), 0);
+
+        registry.register(create_test_app_info("app1"));
+        assert!(!registry.is_empty());
+        assert_eq!(registry.len(), 1);
+
+        registry.register(create_test_app_info("app2"));
+        registry.register(create_test_app_info("app3"));
+        assert_eq!(registry.len(), 3);
+    }
+}

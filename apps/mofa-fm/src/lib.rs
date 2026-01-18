@@ -30,6 +30,8 @@ impl MofaApp for MoFaFMApp {
     }
 
     fn live_design(cx: &mut Cx) {
+        // Register mofa-ui widgets first (audio widgets used by this app)
+        mofa_ui::live_design(cx);
         mofa_hero::live_design(cx);
         screen::live_design(cx);
     }

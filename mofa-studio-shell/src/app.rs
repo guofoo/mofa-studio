@@ -9,14 +9,35 @@
 
 use makepad_widgets::*;
 use mofa_studio_shell::widgets::sidebar::SidebarWidgetRefExt;
+use mofa_ui::{MofaTheme, MofaAppData};
+use mofa_dora_bridge::SharedDoraState;
+
+use std::sync::OnceLock;
+use crate::cli::Args;
+
+// ============================================================================
+// CLI ARGS STORAGE
+// ============================================================================
+
+/// Global storage for CLI arguments (set once at startup)
+static CLI_ARGS: OnceLock<Args> = OnceLock::new();
+
+/// Set CLI arguments (called from main.rs before app starts)
+pub fn set_cli_args(args: Args) {
+    CLI_ARGS.set(args).ok();
+}
+
+/// Get CLI arguments (returns default if not set)
+pub fn get_cli_args() -> &'static Args {
+    CLI_ARGS.get_or_init(Args::default)
+}
 
 // App plugin system imports
-use mofa_debate::{MoFaDebateApp, MoFaDebateScreenWidgetRefExt};
+use mofa_widgets::{MofaApp, AppRegistry, TimerControl};
 use mofa_fm::{MoFaFMApp, MoFaFMScreenWidgetRefExt};
+use mofa_settings::MoFaSettingsApp;
 use mofa_settings::data::Preferences;
 use mofa_settings::screen::SettingsScreenWidgetRefExt;
-use mofa_settings::MoFaSettingsApp;
-use mofa_widgets::{AppRegistry, MofaApp, TimerControl};
 
 // ============================================================================
 // TAB IDENTIFIER
@@ -45,7 +66,9 @@ live_design! {
     use mofa_widgets::theme::BORDER;
     use mofa_widgets::theme::SLATE_50;
     use mofa_widgets::theme::SLATE_200;
+    use mofa_widgets::theme::SLATE_300;
     use mofa_widgets::theme::SLATE_500;
+    use mofa_widgets::theme::SLATE_600;
     use mofa_widgets::theme::SLATE_700;
     use mofa_widgets::theme::SLATE_800;
     use mofa_widgets::theme::GRAY_700;
@@ -162,6 +185,32 @@ live_design! {
                     align: {x: 0.0, y: 0.5}
                     text: "Profile"
                     icon_walk: {width: 14, height: 14, margin: {right: 8}}
+
+                    animator: {
+                        hover = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 1.0} }
+                            }
+                        }
+                        pressed = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 1.0} }
+                            }
+                        }
+                    }
+
                     draw_icon: {
                         svg_file: dep("crate://self/resources/icons/user.svg")
                         fn get_color(self) -> vec4 { return (SLATE_500); }
@@ -175,16 +224,20 @@ live_design! {
                     }
                     draw_bg: {
                         instance hover: 0.0
+                        instance pressed: 0.0
                         instance dark_mode: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             let light_normal = (SLATE_50);
                             let light_hover = (SLATE_200);
+                            let light_pressed = (SLATE_300);
                             let dark_normal = (SLATE_800);
                             let dark_hover = (SLATE_700);
+                            let dark_pressed = (SLATE_600);
                             let normal = mix(light_normal, dark_normal, self.dark_mode);
                             let hover_color = mix(light_hover, dark_hover, self.dark_mode);
-                            let color = mix(normal, hover_color, self.hover);
+                            let pressed_color = mix(light_pressed, dark_pressed, self.dark_mode);
+                            let color = mix(mix(normal, hover_color, self.hover), pressed_color, self.pressed);
                             sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 4.0);
                             sdf.fill(color);
                             return sdf.result;
@@ -209,6 +262,32 @@ live_design! {
                     align: {x: 0.0, y: 0.5}
                     text: "Settings"
                     icon_walk: {width: 14, height: 14, margin: {right: 8}}
+
+                    animator: {
+                        hover = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.15}}
+                                apply: { draw_bg: {hover: 1.0} }
+                            }
+                        }
+                        pressed = {
+                            default: off,
+                            off = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 0.0} }
+                            }
+                            on = {
+                                from: {all: Forward {duration: 0.1}}
+                                apply: { draw_bg: {pressed: 1.0} }
+                            }
+                        }
+                    }
+
                     draw_icon: {
                         svg_file: dep("crate://self/resources/icons/settings.svg")
                         fn get_color(self) -> vec4 { return (SLATE_500); }
@@ -222,16 +301,20 @@ live_design! {
                     }
                     draw_bg: {
                         instance hover: 0.0
+                        instance pressed: 0.0
                         instance dark_mode: 0.0
                         fn pixel(self) -> vec4 {
                             let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                             let light_normal = (SLATE_50);
                             let light_hover = (SLATE_200);
+                            let light_pressed = (SLATE_300);
                             let dark_normal = (SLATE_800);
                             let dark_hover = (SLATE_700);
+                            let dark_pressed = (SLATE_600);
                             let normal = mix(light_normal, dark_normal, self.dark_mode);
                             let hover_color = mix(light_hover, dark_hover, self.dark_mode);
-                            let color = mix(normal, hover_color, self.hover);
+                            let pressed_color = mix(light_pressed, dark_pressed, self.dark_mode);
+                            let color = mix(mix(normal, hover_color, self.hover), pressed_color, self.pressed);
                             sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 4.0);
                             sdf.fill(color);
                             return sdf.result;
@@ -281,18 +364,18 @@ pub struct App {
     /// Registry of installed apps (populated on init)
     #[rust]
     app_registry: AppRegistry,
-    /// Dark mode state
+    /// Theme manager from mofa-ui (handles dark mode with animation)
     #[rust]
-    dark_mode: bool,
-    /// Dark mode animation progress (0.0 = light, 1.0 = dark)
+    theme: MofaTheme,
+    /// App data for scope-based state injection
     #[rust]
-    dark_mode_anim: f64,
+    app_data: MofaAppData,
     /// Whether dark mode animation is in progress
     #[rust]
-    dark_mode_animating: bool,
+    theme_animating: bool,
     /// Animation start time
     #[rust]
-    dark_mode_anim_start: f64,
+    theme_anim_start: f64,
     /// Whether initial theme has been applied (on first draw)
     #[rust]
     theme_initialized: bool,
@@ -303,12 +386,29 @@ impl LiveHook for App {
         // Initialize the app registry with all installed apps
         self.app_registry.register(MoFaFMApp::info());
         self.app_registry.register(MoFaSettingsApp::info());
-        self.app_registry.register(MoFaDebateApp::info());
+
+        // Initialize app_data with shared Dora state
+        let dora_state = SharedDoraState::new();
+        self.app_data = MofaAppData::new(dora_state);
 
         // Load user preferences and restore dark mode
         let prefs = Preferences::load();
-        self.dark_mode = prefs.dark_mode;
-        self.dark_mode_anim = if prefs.dark_mode { 1.0 } else { 0.0 };
+
+        // CLI --dark-mode flag overrides saved preference
+        let cli_args = get_cli_args();
+        let use_dark_mode = cli_args.dark_mode || prefs.dark_mode;
+
+        // Initialize theme using MofaTheme from mofa-ui
+        self.theme = MofaTheme::default();
+        self.theme.set_dark_mode(use_dark_mode);
+        self.app_data.set_dark_mode(use_dark_mode);
+
+        ::log::debug!(
+            "Theme initialized: dark_mode={} (cli={}, prefs={})",
+            use_dark_mode,
+            cli_args.dark_mode,
+            prefs.dark_mode
+        );
     }
 }
 
@@ -345,13 +445,13 @@ impl LiveRegister for App {
         // Core widget libraries
         makepad_widgets::live_design(cx);
         mofa_widgets::live_design(cx);
+        mofa_ui::live_design(cx);  // Register mofa-ui shared components (MofaLogPanel renamed to avoid conflict)
 
         // Register apps via MofaApp trait BEFORE dashboard (dashboard uses app widgets)
         // Note: Widget types in live_design! macro still require compile-time imports
         // (Makepad constraint), but registration uses the standardized trait interface
         <MoFaFMApp as MofaApp>::live_design(cx);
         <MoFaSettingsApp as MofaApp>::live_design(cx);
-        <MoFaDebateApp as MofaApp>::live_design(cx);
 
         // Shell widgets (order matters - tabs before dashboard, apps before dashboard)
         mofa_studio_shell::widgets::sidebar::live_design(cx);
@@ -366,6 +466,7 @@ impl LiveRegister for App {
 
 impl AppMain for App {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        // Use empty scope - mofa-fm widgets don't expect MofaAppData yet
         self.ui.handle_event(cx, event, &mut Scope::empty());
 
         // Initialize theme on first draw (widgets are ready)
@@ -393,8 +494,8 @@ impl AppMain for App {
             self.update_sidebar_pin_animation(cx);
         }
 
-        // Dark mode animation
-        if self.dark_mode_animating {
+        // Dark mode animation (using MofaTheme)
+        if self.theme_animating {
             self.update_dark_mode_animation(cx);
         }
 
@@ -452,33 +553,23 @@ impl App {
         }
 
         let user_btn_x = window_width - 80.0;
-        self.ui.view(ids!(user_btn_overlay)).apply_over(
-            cx,
-            live! {
-                abs_pos: (dvec2(user_btn_x, 10.0))
-            },
-        );
+        self.ui.view(ids!(user_btn_overlay)).apply_over(cx, live!{
+            abs_pos: (dvec2(user_btn_x, 10.0))
+        });
 
         let user_menu_x = window_width - 150.0;
-        self.ui.view(ids!(user_menu)).apply_over(
-            cx,
-            live! {
-                abs_pos: (dvec2(user_menu_x, 55.0))
-            },
-        );
+        self.ui.view(ids!(user_menu)).apply_over(cx, live!{
+            abs_pos: (dvec2(user_menu_x, 55.0))
+        });
 
         let max_scroll_height = (window_height - 230.0).max(200.0);
-        self.ui
-            .sidebar(ids!(sidebar_menu_overlay.sidebar_content))
-            .set_max_scroll_height(max_scroll_height);
+        self.ui.sidebar(ids!(sidebar_menu_overlay.sidebar_content)).set_max_scroll_height(max_scroll_height);
 
         // Pinned sidebar: starts at header bottom (~72px), so less available height
         // Reserved space: header(72) + sidebar padding(30) + logo(5) + mofa_fm(44) + spacing(12)
         //                + divider(17) + settings(44) + more spacing(8) = ~232px
         let pinned_max_scroll = (window_height - 232.0).max(200.0);
-        self.ui
-            .sidebar(ids!(pinned_sidebar.pinned_sidebar_content))
-            .set_max_scroll_height(pinned_max_scroll);
+        self.ui.sidebar(ids!(pinned_sidebar.pinned_sidebar_content)).set_max_scroll_height(pinned_max_scroll);
 
         self.ui.redraw(cx);
     }
@@ -531,21 +622,13 @@ impl App {
 
     /// Handle user menu button clicks
     fn handle_user_menu_clicks(&mut self, cx: &mut Cx, actions: &[Action]) {
-        if self
-            .ui
-            .button(ids!(user_menu.menu_profile_btn))
-            .clicked(actions)
-        {
+        if self.ui.button(ids!(user_menu.menu_profile_btn)).clicked(actions) {
             self.user_menu_open = false;
             self.ui.view(ids!(user_menu)).set_visible(cx, false);
             self.open_or_switch_tab(cx, TabId::Profile);
         }
 
-        if self
-            .ui
-            .button(ids!(user_menu.menu_settings_btn))
-            .clicked(actions)
-        {
+        if self.ui.button(ids!(user_menu.menu_settings_btn)).clicked(actions) {
             self.user_menu_open = false;
             self.ui.view(ids!(user_menu)).set_visible(cx, false);
             self.open_or_switch_tab(cx, TabId::Settings);
@@ -554,35 +637,19 @@ impl App {
 
     /// Handle header theme toggle button
     fn handle_theme_toggle(&mut self, cx: &mut Cx, event: &Event) {
-        let theme_btn = self.ui.view(ids!(
-            body.dashboard_wrapper.dashboard_base.header.theme_toggle
-        ));
+        let theme_btn = self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header.theme_toggle));
 
         match event.hits(cx, theme_btn.area()) {
             Hit::FingerHoverIn(_) => {
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper.dashboard_base.header.theme_toggle
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { hover: 1.0 }
-                        },
-                    );
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header.theme_toggle)).apply_over(cx, live!{
+                    draw_bg: { hover: 1.0 }
+                });
                 self.ui.redraw(cx);
             }
             Hit::FingerHoverOut(_) => {
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper.dashboard_base.header.theme_toggle
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { hover: 0.0 }
-                        },
-                    );
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header.theme_toggle)).apply_over(cx, live!{
+                    draw_bg: { hover: 0.0 }
+                });
                 self.ui.redraw(cx);
             }
             Hit::FingerUp(_) => {
@@ -591,7 +658,7 @@ impl App {
 
                 // Save preference to disk
                 let mut prefs = Preferences::load();
-                prefs.dark_mode = self.dark_mode;
+                prefs.dark_mode = self.theme.is_dark();
                 if let Err(e) = prefs.save() {
                     eprintln!("Failed to save dark mode preference: {}", e);
                 }
@@ -602,25 +669,9 @@ impl App {
 
     /// Update the theme toggle icon based on current mode
     fn update_theme_toggle_icon(&mut self, cx: &mut Cx) {
-        let is_dark = self.dark_mode;
-        self.ui
-            .view(ids!(
-                body.dashboard_wrapper
-                    .dashboard_base
-                    .header
-                    .theme_toggle
-                    .sun_icon
-            ))
-            .set_visible(cx, !is_dark);
-        self.ui
-            .view(ids!(
-                body.dashboard_wrapper
-                    .dashboard_base
-                    .header
-                    .theme_toggle
-                    .moon_icon
-            ))
-            .set_visible(cx, is_dark);
+        let is_dark = self.theme.is_dark();
+        self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header.theme_toggle.sun_icon)).set_visible(cx, !is_dark);
+        self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header.theme_toggle.moon_icon)).set_visible(cx, is_dark);
         self.ui.redraw(cx);
     }
 }
@@ -678,24 +729,9 @@ impl App {
     /// Handle sidebar menu item clicks (both overlay and pinned sidebars)
     fn handle_sidebar_clicks(&mut self, cx: &mut Cx, actions: &[Action]) {
         // MoFA FM tab (overlay or pinned)
-        let fm_clicked = self
-            .ui
-            .button(ids!(
-                sidebar_menu_overlay
-                    .sidebar_content
-                    .main_content
-                    .mofa_fm_tab
-            ))
-            .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .mofa_fm_tab
-                ))
-                .clicked(actions);
+        let fm_clicked =
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.mofa_fm_tab)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.mofa_fm_tab)).clicked(actions);
 
         if fm_clicked {
             // Close overlay if open
@@ -706,170 +742,17 @@ impl App {
             self.open_tabs.clear();
             self.active_tab = None;
             self.ui.view(ids!(body.tab_overlay)).set_visible(cx, false);
-            // Stop debate timers when leaving debate page
-            self.ui
-                .mo_fa_debate_screen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .apply_over(cx, live! { visible: true });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .app_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .settings_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .start_timers(cx);
-            self.ui.redraw(cx);
-        }
-
-        // Debate tab (overlay or pinned)
-        let debate_clicked = self
-            .ui
-            .button(ids!(
-                sidebar_menu_overlay.sidebar_content.main_content.debate_tab
-            ))
-            .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .debate_tab
-                ))
-                .clicked(actions);
-
-        if debate_clicked {
-            // Close overlay if open
-            if self.sidebar_menu_open {
-                self.sidebar_menu_open = false;
-                self.start_sidebar_slide_out(cx);
-            }
-            self.open_tabs.clear();
-            self.active_tab = None;
-            self.ui.view(ids!(body.tab_overlay)).set_visible(cx, false);
-            // Stop FM timers when leaving FM page
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .apply_over(cx, live! { visible: true });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .app_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .settings_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            // Start debate timers
-            self.ui
-                .mo_fa_debate_screen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .start_timers(cx);
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).apply_over(cx, live!{ visible: true });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.app_page)).apply_over(cx, live!{ visible: false });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.settings_page)).apply_over(cx, live!{ visible: false });
+            self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).start_timers(cx);
             self.ui.redraw(cx);
         }
 
         // Settings tab (overlay or pinned)
-        let settings_clicked = self
-            .ui
-            .button(ids!(sidebar_menu_overlay.sidebar_content.settings_tab))
-            .clicked(actions)
-            || self
-                .ui
-                .button(ids!(pinned_sidebar.pinned_sidebar_content.settings_tab))
-                .clicked(actions);
+        let settings_clicked =
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.settings_tab)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.settings_tab)).clicked(actions);
 
         if settings_clicked {
             // Close overlay if open
@@ -880,511 +763,57 @@ impl App {
             self.open_tabs.clear();
             self.active_tab = None;
             self.ui.view(ids!(body.tab_overlay)).set_visible(cx, false);
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .mo_fa_debate_screen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .app_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .settings_page
-                ))
-                .apply_over(cx, live! { visible: true });
+            self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).stop_timers(cx);
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).apply_over(cx, live!{ visible: false });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.app_page)).apply_over(cx, live!{ visible: false });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.settings_page)).apply_over(cx, live!{ visible: true });
             self.ui.redraw(cx);
         }
 
         // App buttons (1-20) - check if any was clicked (overlay or pinned)
-        let app_clicked_overlay = self
-            .ui
-            .button(ids!(
-                sidebar_menu_overlay
-                    .sidebar_content
-                    .main_content
-                    .apps_wrapper
-                    .apps_scroll
-                    .app1_btn
-            ))
-            .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app2_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app3_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app4_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app5_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app6_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app7_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app8_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app9_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app10_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app11_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app12_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app13_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app14_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app15_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app16_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app17_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app18_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app19_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    sidebar_menu_overlay
-                        .sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app20_btn
-                ))
-                .clicked(actions);
+        let app_clicked_overlay =
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app1_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app2_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app3_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app4_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app5_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app6_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app7_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app8_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app9_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app10_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app11_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app12_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app13_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app14_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app15_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app16_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app17_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app18_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app19_btn)).clicked(actions) ||
+            self.ui.button(ids!(sidebar_menu_overlay.sidebar_content.main_content.apps_wrapper.apps_scroll.app20_btn)).clicked(actions);
 
-        let app_clicked_pinned = self
-            .ui
-            .button(ids!(
-                pinned_sidebar
-                    .pinned_sidebar_content
-                    .main_content
-                    .apps_wrapper
-                    .apps_scroll
-                    .app1_btn
-            ))
-            .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app2_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app3_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app4_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app5_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app6_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app7_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app8_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app9_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app10_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app11_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app12_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app13_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app14_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app15_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app16_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app17_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app18_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app19_btn
-                ))
-                .clicked(actions)
-            || self
-                .ui
-                .button(ids!(
-                    pinned_sidebar
-                        .pinned_sidebar_content
-                        .main_content
-                        .apps_wrapper
-                        .apps_scroll
-                        .app20_btn
-                ))
-                .clicked(actions);
+        let app_clicked_pinned =
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app1_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app2_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app3_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app4_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app5_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app6_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app7_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app8_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app9_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app10_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app11_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app12_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app13_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app14_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app15_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app16_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app17_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app18_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app19_btn)).clicked(actions) ||
+            self.ui.button(ids!(pinned_sidebar.pinned_sidebar_content.main_content.apps_wrapper.apps_scroll.app20_btn)).clicked(actions);
 
         if app_clicked_overlay || app_clicked_pinned {
             // Close overlay if open
@@ -1395,66 +824,10 @@ impl App {
             self.open_tabs.clear();
             self.active_tab = None;
             self.ui.view(ids!(body.tab_overlay)).set_visible(cx, false);
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .mo_fa_debate_screen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .stop_timers(cx);
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .debate_page
-                ))
-                .apply_over(cx, live! { visible: false });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .app_page
-                ))
-                .apply_over(cx, live! { visible: true });
-            self.ui
-                .view(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .settings_page
-                ))
-                .apply_over(cx, live! { visible: false });
+            self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).stop_timers(cx);
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).apply_over(cx, live!{ visible: false });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.app_page)).apply_over(cx, live!{ visible: true });
+            self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.settings_page)).apply_over(cx, live!{ visible: false });
             self.ui.redraw(cx);
         }
     }
@@ -1480,22 +853,15 @@ impl App {
             -SIDEBAR_WIDTH * eased
         };
 
-        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(
-            cx,
-            live! {
-                abs_pos: (dvec2(x, 52.0))
-            },
-        );
+        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(cx, live!{
+            abs_pos: (dvec2(x, 52.0))
+        });
 
         if progress >= 1.0 {
             self.sidebar_animating = false;
             if !self.sidebar_slide_in {
-                self.ui
-                    .view(ids!(sidebar_menu_overlay))
-                    .set_visible(cx, false);
-                self.ui
-                    .sidebar(ids!(sidebar_menu_overlay.sidebar_content))
-                    .collapse_show_more(cx);
+                self.ui.view(ids!(sidebar_menu_overlay)).set_visible(cx, false);
+                self.ui.sidebar(ids!(sidebar_menu_overlay.sidebar_content)).collapse_show_more(cx);
             }
         }
 
@@ -1507,18 +873,11 @@ impl App {
         self.sidebar_animating = true;
         self.sidebar_animation_start = Cx::time_now();
         self.sidebar_slide_in = true;
-        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(
-            cx,
-            live! {
-                abs_pos: (dvec2(-250.0, 52.0))
-            },
-        );
-        self.ui
-            .view(ids!(sidebar_menu_overlay))
-            .set_visible(cx, true);
-        self.ui
-            .sidebar(ids!(sidebar_menu_overlay.sidebar_content))
-            .restore_selection_state(cx);
+        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(cx, live!{
+            abs_pos: (dvec2(-250.0, 52.0))
+        });
+        self.ui.view(ids!(sidebar_menu_overlay)).set_visible(cx, true);
+        self.ui.sidebar(ids!(sidebar_menu_overlay.sidebar_content)).restore_selection_state(cx);
         self.ui.redraw(cx);
     }
 
@@ -1535,9 +894,7 @@ impl App {
         // Close hover overlay if open
         if self.sidebar_menu_open {
             self.sidebar_menu_open = false;
-            self.ui
-                .view(ids!(sidebar_menu_overlay))
-                .set_visible(cx, false);
+            self.ui.view(ids!(sidebar_menu_overlay)).set_visible(cx, false);
         }
 
         self.sidebar_pinned = !self.sidebar_pinned;
@@ -1567,31 +924,19 @@ impl App {
         };
 
         // Get header's actual bottom position
-        let header_rect = self
-            .ui
-            .view(ids!(body.dashboard_wrapper.dashboard_base.header))
-            .area()
-            .rect(cx);
+        let header_rect = self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header)).area().rect(cx);
         let header_bottom = header_rect.pos.y + header_rect.size.y;
 
         // Apply width and position to pinned sidebar
-        self.ui.view(ids!(pinned_sidebar)).apply_over(
-            cx,
-            live! {
-                width: (sidebar_width)
-                abs_pos: (dvec2(0.0, header_bottom))
-            },
-        );
+        self.ui.view(ids!(pinned_sidebar)).apply_over(cx, live!{
+            width: (sidebar_width)
+            abs_pos: (dvec2(0.0, header_bottom))
+        });
 
         // Apply left margin to content_area to push it (not the header)
-        self.ui
-            .view(ids!(body.dashboard_wrapper.dashboard_base.content_area))
-            .apply_over(
-                cx,
-                live! {
-                    margin: { left: (sidebar_width) }
-                },
-            );
+        self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area)).apply_over(cx, live!{
+            margin: { left: (sidebar_width) }
+        });
 
         // Trigger overlay stays at original position - hamburger is in header which doesn't move
 
@@ -1607,39 +952,33 @@ impl App {
 
     /// Toggle dark mode with animation
     pub fn toggle_dark_mode(&mut self, cx: &mut Cx) {
-        self.dark_mode = !self.dark_mode;
-        self.dark_mode_animating = true;
-        self.dark_mode_anim_start = Cx::time_now();
+        self.theme.toggle();
+        self.app_data.set_dark_mode(self.theme.is_dark());
+        self.theme_animating = true;
+        self.theme_anim_start = Cx::time_now();
 
         // Apply screens immediately at target value (snap, not animated)
         // This avoids calling update_dark_mode on every frame
-        let target = if self.dark_mode { 1.0 } else { 0.0 };
+        let target = self.theme.target_value();
         self.apply_dark_mode_screens_with_value(cx, target);
 
         self.ui.redraw(cx);
     }
 
-    /// Update dark mode animation
+    /// Update dark mode animation using MofaTheme
     fn update_dark_mode_animation(&mut self, cx: &mut Cx) {
-        let elapsed = Cx::time_now() - self.dark_mode_anim_start;
-        let duration = 0.3; // 300ms animation
+        let elapsed = Cx::time_now() - self.theme_anim_start;
+        let duration = mofa_ui::THEME_TRANSITION_DURATION;
 
-        // Ease-out cubic
-        let t = (elapsed / duration).min(1.0);
-        let eased = 1.0 - (1.0 - t).powi(3);
-
-        // Animate from current to target
-        let target = if self.dark_mode { 1.0 } else { 0.0 };
-        let start = if self.dark_mode { 0.0 } else { 1.0 };
-        self.dark_mode_anim = start + (target - start) * eased;
+        // Use MofaTheme's animation update
+        let still_animating = self.theme.update_animation(elapsed, duration);
 
         // During animation: only update main panels (no errors)
         // Full update with screens happens only at the end
         self.apply_dark_mode_panels(cx);
 
-        if t >= 1.0 {
-            self.dark_mode_animating = false;
-            self.dark_mode_anim = target;
+        if !still_animating {
+            self.theme_animating = false;
             // Apply to ALL widgets including screens at animation end
             self.apply_dark_mode_screens(cx);
         }
@@ -1649,285 +988,138 @@ impl App {
 
     /// Apply dark mode to main panels only (safe for animation frames, no errors)
     fn apply_dark_mode_panels(&mut self, cx: &mut Cx) {
-        let dm = self.dark_mode_anim;
+        let dm = self.theme.dark_mode_anim;
 
         // Apply to dashboard wrapper background
-        self.ui.view(ids!(body.dashboard_wrapper)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-            },
-        );
+        self.ui.view(ids!(body.dashboard_wrapper)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to header
-        self.ui
-            .view(ids!(body.dashboard_wrapper.dashboard_base.header))
-            .apply_over(
-                cx,
-                live! {
-                    draw_bg: { dark_mode: (dm) }
-                },
-            );
+        self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.header)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to pinned sidebar background
-        self.ui.view(ids!(pinned_sidebar)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-            },
-        );
+        self.ui.view(ids!(pinned_sidebar)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to pinned sidebar content
-        self.ui
-            .sidebar(ids!(pinned_sidebar.pinned_sidebar_content))
+        self.ui.sidebar(ids!(pinned_sidebar.pinned_sidebar_content))
             .update_dark_mode(cx, dm);
 
         // Apply to sidebar menu overlay
-        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-            },
-        );
+        self.ui.view(ids!(sidebar_menu_overlay)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to sidebar content (this is safe, sidebar widget handles it internally)
-        self.ui
-            .sidebar(ids!(sidebar_menu_overlay.sidebar_content))
+        self.ui.sidebar(ids!(sidebar_menu_overlay.sidebar_content))
             .update_dark_mode(cx, dm);
 
         // Apply to user menu
-        self.ui.view(ids!(user_menu)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-            },
-        );
+        self.ui.view(ids!(user_menu)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to user menu buttons
-        self.ui.button(ids!(user_menu.menu_profile_btn)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-                draw_text: { dark_mode: (dm) }
-            },
-        );
-        self.ui
-            .button(ids!(user_menu.menu_settings_btn))
-            .apply_over(
-                cx,
-                live! {
-                    draw_bg: { dark_mode: (dm) }
-                    draw_text: { dark_mode: (dm) }
-                },
-            );
-        self.ui.view(ids!(user_menu.menu_divider)).apply_over(
-            cx,
-            live! {
-                draw_bg: { dark_mode: (dm) }
-            },
-        );
+        self.ui.button(ids!(user_menu.menu_profile_btn)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+            draw_text: { dark_mode: (dm) }
+        });
+        self.ui.button(ids!(user_menu.menu_settings_btn)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+            draw_text: { dark_mode: (dm) }
+        });
+        self.ui.view(ids!(user_menu.menu_divider)).apply_over(cx, live!{
+            draw_bg: { dark_mode: (dm) }
+        });
 
         // Apply to tab overlay - only when tabs are open
         if !self.open_tabs.is_empty() {
-            self.ui.view(ids!(body.tab_overlay)).apply_over(
-                cx,
-                live! {
-                    draw_bg: { dark_mode: (dm) }
-                },
-            );
+            self.ui.view(ids!(body.tab_overlay)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dm) }
+            });
 
             // Apply to tab bar
-            self.ui.view(ids!(body.tab_overlay.tab_bar)).apply_over(
-                cx,
-                live! {
-                    draw_bg: { dark_mode: (dm) }
-                },
-            );
+            self.ui.view(ids!(body.tab_overlay.tab_bar)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dm) }
+            });
 
             // Apply to tab widgets
             if self.open_tabs.contains(&TabId::Profile) {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.profile_tab))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .label(ids!(body.tab_overlay.tab_bar.profile_tab.tab_label))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
+                self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
+                self.ui.label(ids!(body.tab_overlay.tab_bar.profile_tab.tab_label)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
             }
 
             if self.open_tabs.contains(&TabId::Settings) {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.settings_tab))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .label(ids!(body.tab_overlay.tab_bar.settings_tab.tab_label))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
+                self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
+                self.ui.label(ids!(body.tab_overlay.tab_bar.settings_tab.tab_label)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
             }
 
             // Tab content backgrounds
             if self.open_tabs.contains(&TabId::Profile) {
                 // Profile page background
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_content.profile_page))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
+                self.ui.view(ids!(body.tab_overlay.tab_content.profile_page)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
                 // Profile page internal widgets
-                self.ui
-                    .label(ids!(
-                        body.tab_overlay.tab_content.profile_page.profile_title
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .view(ids!(
-                        body.tab_overlay.tab_content.profile_page.profile_divider
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .view(ids!(
-                        body.tab_overlay
-                            .tab_content
-                            .profile_page
-                            .profile_row
-                            .profile_avatar
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_bg: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .label(ids!(
-                        body.tab_overlay
-                            .tab_content
-                            .profile_page
-                            .profile_row
-                            .profile_info
-                            .profile_name
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .label(ids!(
-                        body.tab_overlay
-                            .tab_content
-                            .profile_page
-                            .profile_row
-                            .profile_info
-                            .profile_email
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
-                self.ui
-                    .label(ids!(
-                        body.tab_overlay
-                            .tab_content
-                            .profile_page
-                            .profile_coming_soon
-                    ))
-                    .apply_over(
-                        cx,
-                        live! {
-                            draw_text: { dark_mode: (dm) }
-                        },
-                    );
+                self.ui.label(ids!(body.tab_overlay.tab_content.profile_page.profile_title)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
+                self.ui.view(ids!(body.tab_overlay.tab_content.profile_page.profile_divider)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
+                self.ui.view(ids!(body.tab_overlay.tab_content.profile_page.profile_row.profile_avatar)).apply_over(cx, live!{
+                    draw_bg: { dark_mode: (dm) }
+                });
+                self.ui.label(ids!(body.tab_overlay.tab_content.profile_page.profile_row.profile_info.profile_name)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
+                self.ui.label(ids!(body.tab_overlay.tab_content.profile_page.profile_row.profile_info.profile_email)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
+                self.ui.label(ids!(body.tab_overlay.tab_content.profile_page.profile_coming_soon)).apply_over(cx, live!{
+                    draw_text: { dark_mode: (dm) }
+                });
             }
         }
     }
 
     /// Apply dark mode to screens (may produce errors, called once at start/end only)
     fn apply_dark_mode_screens(&mut self, cx: &mut Cx) {
-        self.apply_dark_mode_screens_with_value(cx, self.dark_mode_anim);
+        self.apply_dark_mode_screens_with_value(cx, self.theme.dark_mode_anim);
     }
 
     /// Apply dark mode to screens with a specific value
     fn apply_dark_mode_screens_with_value(&mut self, cx: &mut Cx, dm: f64) {
         // Apply to MoFA FM screen
-        self.ui
-            .mo_fa_fmscreen(ids!(
-                body.dashboard_wrapper
-                    .dashboard_base
-                    .content_area
-                    .main_content
-                    .content
-                    .fm_page
-            ))
+        self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page))
             .update_dark_mode(cx, dm);
 
         // Apply to Settings screen in main content
-        self.ui
-            .settings_screen(ids!(
-                body.dashboard_wrapper
-                    .dashboard_base
-                    .content_area
-                    .main_content
-                    .content
-                    .settings_page
-            ))
+        self.ui.settings_screen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.settings_page))
             .update_dark_mode(cx, dm);
 
         // Apply to tab overlay content - only when tabs are open
         if !self.open_tabs.is_empty() {
             if self.open_tabs.contains(&TabId::Settings) {
-                self.ui
-                    .settings_screen(ids!(body.tab_overlay.tab_content.settings_tab_page))
+                self.ui.settings_screen(ids!(body.tab_overlay.tab_content.settings_tab_page))
                     .update_dark_mode(cx, dm);
             }
         }
@@ -1962,24 +1154,14 @@ impl App {
 
     /// Handle tab widget clicks
     fn handle_tab_clicks(&mut self, cx: &mut Cx, actions: &[Action]) {
-        if self
-            .ui
-            .view(ids!(body.tab_overlay.tab_bar.profile_tab))
-            .finger_up(actions)
-            .is_some()
-        {
+        if self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab)).finger_up(actions).is_some() {
             if self.open_tabs.contains(&TabId::Profile) {
                 self.active_tab = Some(TabId::Profile);
                 self.update_tab_ui(cx);
             }
         }
 
-        if self
-            .ui
-            .view(ids!(body.tab_overlay.tab_bar.settings_tab))
-            .finger_up(actions)
-            .is_some()
-        {
+        if self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab)).finger_up(actions).is_some() {
             if self.open_tabs.contains(&TabId::Settings) {
                 self.active_tab = Some(TabId::Settings);
                 self.update_tab_ui(cx);
@@ -1989,47 +1171,39 @@ impl App {
 
     /// Handle tab close button clicks
     fn handle_tab_close_clicks(&mut self, cx: &mut Cx, event: &Event) {
-        let profile_close = self
-            .ui
-            .view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn));
+        let profile_close = self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn));
         match event.hits(cx, profile_close.area()) {
             Hit::FingerUp(_) => {
                 self.close_tab(cx, TabId::Profile);
                 return;
             }
             Hit::FingerHoverIn(_) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn))
-                    .apply_over(cx, live! { draw_bg: { hover: 1.0 } });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn))
+                    .apply_over(cx, live!{ draw_bg: { hover: 1.0 } });
                 self.ui.redraw(cx);
             }
             Hit::FingerHoverOut(_) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn))
-                    .apply_over(cx, live! { draw_bg: { hover: 0.0 } });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab.close_btn))
+                    .apply_over(cx, live!{ draw_bg: { hover: 0.0 } });
                 self.ui.redraw(cx);
             }
             _ => {}
         }
 
-        let settings_close = self
-            .ui
-            .view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn));
+        let settings_close = self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn));
         match event.hits(cx, settings_close.area()) {
             Hit::FingerUp(_) => {
                 self.close_tab(cx, TabId::Settings);
                 return;
             }
             Hit::FingerHoverIn(_) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn))
-                    .apply_over(cx, live! { draw_bg: { hover: 1.0 } });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn))
+                    .apply_over(cx, live!{ draw_bg: { hover: 1.0 } });
                 self.ui.redraw(cx);
             }
             Hit::FingerHoverOut(_) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn))
-                    .apply_over(cx, live! { draw_bg: { hover: 0.0 } });
+                self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab.close_btn))
+                    .apply_over(cx, live!{ draw_bg: { hover: 0.0 } });
                 self.ui.redraw(cx);
             }
             _ => {}
@@ -2047,90 +1221,50 @@ impl App {
 
         let was_overlay_visible = self.ui.view(ids!(body.tab_overlay)).visible();
 
-        self.ui
-            .view(ids!(body.tab_overlay))
-            .set_visible(cx, any_tabs_open);
+        self.ui.view(ids!(body.tab_overlay)).set_visible(cx, any_tabs_open);
 
         // Manage FM page timers
         if any_tabs_open && !was_overlay_visible {
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .stop_timers(cx);
+            self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).stop_timers(cx);
         } else if !any_tabs_open && was_overlay_visible {
-            self.ui
-                .mo_fa_fmscreen(ids!(
-                    body.dashboard_wrapper
-                        .dashboard_base
-                        .content_area
-                        .main_content
-                        .content
-                        .fm_page
-                ))
-                .start_timers(cx);
+            self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page)).start_timers(cx);
         }
 
         // Update tab visibility
-        self.ui
-            .view(ids!(body.tab_overlay.tab_bar.profile_tab))
-            .set_visible(cx, profile_open);
-        self.ui
-            .view(ids!(body.tab_overlay.tab_bar.settings_tab))
-            .set_visible(cx, settings_open);
+        self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab)).set_visible(cx, profile_open);
+        self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab)).set_visible(cx, settings_open);
 
         // Update profile tab active state
         let profile_active_val = if profile_active { 1.0 } else { 0.0 };
-        self.ui
-            .view(ids!(body.tab_overlay.tab_bar.profile_tab))
-            .apply_over(cx, live! { draw_bg: { active: (profile_active_val) } });
-        self.ui
-            .label(ids!(body.tab_overlay.tab_bar.profile_tab.tab_label))
-            .apply_over(cx, live! { draw_text: { active: (profile_active_val) } });
+        self.ui.view(ids!(body.tab_overlay.tab_bar.profile_tab))
+            .apply_over(cx, live!{ draw_bg: { active: (profile_active_val) } });
+        self.ui.label(ids!(body.tab_overlay.tab_bar.profile_tab.tab_label))
+            .apply_over(cx, live!{ draw_text: { active: (profile_active_val) } });
 
         // Update settings tab active state
         let settings_active_val = if settings_active { 1.0 } else { 0.0 };
-        self.ui
-            .view(ids!(body.tab_overlay.tab_bar.settings_tab))
-            .apply_over(cx, live! { draw_bg: { active: (settings_active_val) } });
-        self.ui
-            .label(ids!(body.tab_overlay.tab_bar.settings_tab.tab_label))
-            .apply_over(cx, live! { draw_text: { active: (settings_active_val) } });
+        self.ui.view(ids!(body.tab_overlay.tab_bar.settings_tab))
+            .apply_over(cx, live!{ draw_bg: { active: (settings_active_val) } });
+        self.ui.label(ids!(body.tab_overlay.tab_bar.settings_tab.tab_label))
+            .apply_over(cx, live!{ draw_text: { active: (settings_active_val) } });
 
         // Hide all content pages first
-        self.ui
-            .view(ids!(body.tab_overlay.tab_content.profile_page))
-            .set_visible(cx, false);
-        self.ui
-            .view(ids!(body.tab_overlay.tab_content.settings_tab_page))
-            .set_visible(cx, false);
+        self.ui.view(ids!(body.tab_overlay.tab_content.profile_page)).set_visible(cx, false);
+        self.ui.view(ids!(body.tab_overlay.tab_content.settings_tab_page)).set_visible(cx, false);
 
         // Show active tab content
         match self.active_tab {
             Some(TabId::Profile) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_content.profile_page))
-                    .set_visible(cx, true);
+                self.ui.view(ids!(body.tab_overlay.tab_content.profile_page)).set_visible(cx, true);
             }
             Some(TabId::Settings) => {
-                self.ui
-                    .view(ids!(body.tab_overlay.tab_content.settings_tab_page))
-                    .set_visible(cx, true);
+                self.ui.view(ids!(body.tab_overlay.tab_content.settings_tab_page)).set_visible(cx, true);
             }
             None => {
                 if profile_open {
-                    self.ui
-                        .view(ids!(body.tab_overlay.tab_content.profile_page))
-                        .set_visible(cx, true);
+                    self.ui.view(ids!(body.tab_overlay.tab_content.profile_page)).set_visible(cx, true);
                 } else if settings_open {
-                    self.ui
-                        .view(ids!(body.tab_overlay.tab_content.settings_tab_page))
-                        .set_visible(cx, true);
+                    self.ui.view(ids!(body.tab_overlay.tab_content.settings_tab_page)).set_visible(cx, true);
                 }
             }
         }
@@ -2146,88 +1280,20 @@ impl App {
 impl App {
     /// Handle MofaHero start/stop button clicks
     fn handle_mofa_hero_buttons(&mut self, cx: &mut Cx, event: &Event) {
-        let start_view = self.ui.view(ids!(
-            body.dashboard_wrapper
-                .dashboard_base
-                .content_area
-                .main_content
-                .content
-                .fm_page
-                .mofa_hero
-                .action_section
-                .start_view
-        ));
+        let start_view = self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.start_view));
         match event.hits(cx, start_view.area()) {
             Hit::FingerUp(_) => {
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper
-                            .dashboard_base
-                            .content_area
-                            .main_content
-                            .content
-                            .fm_page
-                            .mofa_hero
-                            .action_section
-                            .start_view
-                    ))
-                    .set_visible(cx, false);
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper
-                            .dashboard_base
-                            .content_area
-                            .main_content
-                            .content
-                            .fm_page
-                            .mofa_hero
-                            .action_section
-                            .stop_view
-                    ))
-                    .set_visible(cx, true);
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.start_view)).set_visible(cx, false);
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.stop_view)).set_visible(cx, true);
                 self.ui.redraw(cx);
             }
             _ => {}
         }
-        let stop_view = self.ui.view(ids!(
-            body.dashboard_wrapper
-                .dashboard_base
-                .content_area
-                .main_content
-                .content
-                .fm_page
-                .mofa_hero
-                .action_section
-                .stop_view
-        ));
+        let stop_view = self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.stop_view));
         match event.hits(cx, stop_view.area()) {
             Hit::FingerUp(_) => {
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper
-                            .dashboard_base
-                            .content_area
-                            .main_content
-                            .content
-                            .fm_page
-                            .mofa_hero
-                            .action_section
-                            .start_view
-                    ))
-                    .set_visible(cx, true);
-                self.ui
-                    .view(ids!(
-                        body.dashboard_wrapper
-                            .dashboard_base
-                            .content_area
-                            .main_content
-                            .content
-                            .fm_page
-                            .mofa_hero
-                            .action_section
-                            .stop_view
-                    ))
-                    .set_visible(cx, false);
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.start_view)).set_visible(cx, true);
+                self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page.mofa_hero.action_section.stop_view)).set_visible(cx, false);
                 self.ui.redraw(cx);
             }
             _ => {}

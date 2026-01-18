@@ -17,11 +17,37 @@ live_design! {
     ICO_START = dep("crate://self/resources/icons/start.svg")
     ICO_STOP = dep("crate://self/resources/icons/stop.svg")
 
-    // Action button (start/stop toggle)
+    // Action button (start/stop toggle) with hover animation
     ActionButton = <Button> {
         width: 36, height: 36
         align: {x: 0.5, y: 0.5}
         icon_walk: {width: 24, height: 24}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
+
         draw_icon: {
             svg_file: (ICO_START)
             instance is_running: 0.0  // 0=stopped(green play), 1=running(red stop)
@@ -32,8 +58,18 @@ live_design! {
             }
         }
         draw_bg: {
+            instance hover: 0.0
+            instance pressed: 0.0
+
             fn pixel(self) -> vec4 {
-                return vec4(0.0, 0.0, 0.0, 0.0);  // Transparent
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                // Subtle circular hover background
+                let center = self.rect_size * 0.5;
+                let radius = min(center.x, center.y);
+                sdf.circle(center.x, center.y, radius);
+                let hover_color = vec4(0.0, 0.0, 0.0, 0.08 * self.hover + 0.12 * self.pressed);
+                sdf.fill(hover_color);
+                return sdf.result;
             }
         }
     }
@@ -137,11 +173,37 @@ live_design! {
         }
     }
 
-    // Dataflow status button
+    // Dataflow status button with hover animation
     DataflowButton = <Button> {
         width: Fill, height: 20
         align: {x: 0.5, y: 0.5}
         text: "Ready"
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
+
         draw_text: {
             color: (WHITE)
             text_style: <FONT_SEMIBOLD>{ font_size: 10.0 }
@@ -150,6 +212,8 @@ live_design! {
             }
         }
         draw_bg: {
+            instance hover: 0.0
+            instance pressed: 0.0
             instance status: 0.0  // 0=ready(gray), 1=connected(green), 2=error(red)
             border_radius: 4.0
 
@@ -160,14 +224,20 @@ live_design! {
                 let green = vec4(0.13, 0.77, 0.37, 1.0);      // Connected
                 let red = vec4(0.95, 0.25, 0.25, 1.0);        // Error
 
-                let color = mix(
+                let base_color = mix(
                     mix(gray, green, step(0.5, self.status)),
                     red,
                     step(1.5, self.status)
                 );
 
+                // Darken on hover/press
+                let hover_darken = 0.85;
+                let press_darken = 0.75;
+                let darken = mix(1.0, mix(hover_darken, press_darken, self.pressed), self.hover);
+                let color = base_color * darken;
+
                 sdf.box(0., 0., self.rect_size.x, self.rect_size.y, self.border_radius);
-                sdf.fill(color);
+                sdf.fill(vec4(color.xyz, base_color.w));
                 return sdf.result;
             }
         }

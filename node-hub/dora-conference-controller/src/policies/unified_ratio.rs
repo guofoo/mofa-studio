@@ -221,6 +221,13 @@ impl UnifiedRatioPolicy {
         self.ratio_priority_cycle = 0;
     }
 
+    /// Set last speaker (used after human input to avoid cold start)
+    /// When human speaks, we want priority speakers (tutor) to respond,
+    /// not trigger cold start logic which skips priority speakers.
+    pub fn set_last_speaker(&mut self, speaker: Option<String>) {
+        self.last_speaker = speaker;
+    }
+
     /// Get statistics
     pub fn get_stats(&self) -> serde_json::Value {
         let mut stats = serde_json::Map::new();

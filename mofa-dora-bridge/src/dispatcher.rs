@@ -9,7 +9,7 @@ use crate::controller::DataflowController;
 use crate::error::{BridgeError, BridgeResult};
 use crate::parser::MofaNodeSpec;
 use crate::shared_state::SharedDoraState;
-use crate::widgets::{AudioPlayerBridge, PromptInputBridge, SystemLogBridge};
+use crate::widgets::{AecInputBridge, AudioPlayerBridge, PromptInputBridge, SystemLogBridge};
 use crate::MofaNodeType;
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -105,8 +105,7 @@ impl DynamicNodeDispatcher {
                     shared_state.clone(),
                 )),
                 MofaNodeType::MicInput => {
-                    // TODO: Implement MicInputBridge
-                    continue;
+                    Box::new(AecInputBridge::with_shared_state(&node_spec.id, shared_state.clone()))
                 }
                 MofaNodeType::ChatViewer => {
                     // TODO: Implement ChatViewerBridge

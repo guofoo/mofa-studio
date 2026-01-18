@@ -1,10 +1,128 @@
-//! Audio player bridge
+//! Audio Player Bridge
 //!
 //! Connects to dora as `mofa-audio-player` dynamic node.
 //! Receives audio from TTS nodes and provides:
 //! - Audio samples to the widget for playback
 //! - Buffer status output back to dora
-//! - Participant audio levels for LED visualization (consolidated from participant_panel)
+//! - Participant audio levels for LED visualization
+//!
+//! # Human Speech Interrupt
+//!
+//! When a human starts speaking, the system needs to immediately stop AI audio playback.
+//! This is handled through two mechanisms:
+//!
+//! ## 1. Instant Audio Mute (Force Mute)
+//!
+//! The audio callback runs on its own thread and reads from a circular buffer.
+//! To achieve instant silencing without waiting for UI polling:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                     Instant Mute Flow                               │
+//! │                                                                     │
+//! │  1. Human speaks → mic-input sends speech_started                   │
+//! │  2. Controller receives → sends reset to audio-player               │
+//! │  3. Bridge receives reset → calls SharedDoraState.audio.signal_clear()
+//! │  4. signal_clear() sets force_mute = true (atomic store)            │
+//! │  5. Audio callback checks force_mute → outputs silence immediately  │
+//! │                                                                     │
+//! │  Latency: < 1ms (next audio callback frame)                         │
+//! └─────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! The `force_mute` flag is an `Arc<AtomicBool>` shared between:
+//! - `AudioPlayer` (UI component) - creates and owns the flag
+//! - `SharedDoraState.AudioState` - registered via `register_force_mute()`
+//! - Audio callback thread - checks flag before each buffer read
+//!
+//! ## 2. Smart Reset (Question ID Filtering)
+//!
+//! After a reset, stale audio chunks (from the previous question) may still be
+//! in-flight in the Dora pipeline. Playing these would cause brief "garbled" audio.
+//!
+//! Smart reset prevents this by filtering incoming audio by `question_id`:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                     Smart Reset Flow                                │
+//! │                                                                     │
+//! │  State: AI speaking (question_id=5)                                 │
+//! │                                                                     │
+//! │  1. Human interrupts                                                │
+//! │  2. Controller sends reset with question_id=6 (new question)        │
+//! │  3. Audio player:                                                   │
+//! │     a. Clears buffer (instant silence via force_mute)               │
+//! │     b. Sets filtering_mode = true                                   │
+//! │     c. Sets reset_question_id = "6"                                 │
+//! │                                                                     │
+//! │  4. Stale audio arrives (question_id=5)                             │
+//! │     → REJECTED (doesn't match reset_question_id)                    │
+//! │                                                                     │
+//! │  5. New audio arrives (question_id=6)                               │
+//! │     → ACCEPTED, exits filtering_mode                                │
+//! │     → Normal playback resumes                                       │
+//! └─────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! ### Reset Types
+//!
+//! | Reset Type | question_id | Behavior |
+//! |------------|-------------|----------|
+//! | Full Reset | None        | Clear buffer, no filtering |
+//! | Smart Reset| Present     | Clear buffer + filter by question_id |
+//!
+//! # Comparison with Python Implementation
+//!
+//! This implementation matches the Python `audio_player.py` from the conference example:
+//!
+//! | Feature | Python | Rust |
+//! |---------|--------|------|
+//! | Instant mute | Direct buffer.reset() | force_mute AtomicBool |
+//! | Filtering mode | filtering_mode bool | filtering_mode bool |
+//! | Question ID tracking | reset_question_id | reset_question_id |
+//! | Stale audio rejection | continue (skip) | return (skip) |
+//!
+//! The key difference is that Python's audio player IS the Dora node (direct event handling),
+//! while Rust uses a bridge pattern with SharedDoraState for UI communication.
+//! The `force_mute` mechanism compensates for this by providing direct atomic access
+//! to the audio callback thread.
+//!
+//! # Architecture
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                         Dora Dataflow                               │
+//! │  ┌──────────┐    ┌────────────┐    ┌─────────────────┐              │
+//! │  │ TTS Node │───▶│ audio_*    │───▶│ mofa-audio-player│             │
+//! │  └──────────┘    └────────────┘    │ (this bridge)   │              │
+//! │                                    └────────┬────────┘              │
+//! │  ┌──────────┐    ┌────────────┐             │                       │
+//! │  │Controller│───▶│ reset      │─────────────┘                       │
+//! │  └──────────┘    └────────────┘                                     │
+//! └─────────────────────────────────────────────────────────────────────┘
+//!                                      │
+//!                                      ▼
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                       SharedDoraState                               │
+//! │  ┌──────────────────────────────────────────────────────────────┐   │
+//! │  │ AudioState                                                   │   │
+//! │  │  • chunks: RwLock<VecDeque<AudioData>>  (pending audio)      │   │
+//! │  │  • should_clear: AtomicBool             (UI polling signal)  │   │
+//! │  │  • force_mute_flag: Arc<AtomicBool>     (instant mute)       │   │
+//! │  └──────────────────────────────────────────────────────────────┘   │
+//! └─────────────────────────────────────────────────────────────────────┘
+//!                                      │
+//!                                      ▼
+//! ┌─────────────────────────────────────────────────────────────────────┐
+//! │                         UI (Makepad)                                │
+//! │  ┌──────────────────────────────────────────────────────────────┐   │
+//! │  │ AudioPlayer                                                  │   │
+//! │  │  • force_mute: Arc<AtomicBool>  ←── shared with AudioState   │   │
+//! │  │  • circular_buffer: CircularAudioBuffer                      │   │
+//! │  │  • audio_callback: checks force_mute before reading          │   │
+//! │  └──────────────────────────────────────────────────────────────┘   │
+//! └─────────────────────────────────────────────────────────────────────┘
+//! ```
 
 use crate::bridge::{BridgeState, DoraBridge};
 use crate::data::{AudioData, DoraData, EventMetadata};
@@ -113,6 +231,12 @@ impl AudioPlayerBridge {
         let mut active_switch_for: std::collections::HashSet<String> =
             std::collections::HashSet::new();
 
+        // Smart reset state (matches Python audio_player.py)
+        // When reset arrives with question_id, we enter filtering_mode
+        // and reject audio chunks until we receive one with matching question_id
+        let mut filtering_mode = false;
+        let mut reset_question_id: Option<String> = None;
+
         // Event loop
         loop {
             // Check for stop signal
@@ -142,6 +266,8 @@ impl AudioPlayerBridge {
                         &mut session_start_sent_for,
                         &mut active_participant,
                         &mut active_switch_for,
+                        &mut filtering_mode,
+                        &mut reset_question_id,
                     );
                 }
                 None => {
@@ -165,6 +291,8 @@ impl AudioPlayerBridge {
         session_start_sent_for: &mut std::collections::HashSet<String>,
         active_participant: &mut Option<String>,
         active_switch_for: &mut std::collections::HashSet<String>,
+        filtering_mode: &mut bool,
+        reset_question_id: &mut Option<String>,
     ) {
         match event {
             Event::Input { id, data, metadata } => {
@@ -185,14 +313,70 @@ impl AudioPlayerBridge {
                     event_meta.values.insert(key.clone(), string_value);
                 }
 
+                // Handle reset input - immediately clear audio buffer (human speaking interrupt)
+                // Smart reset: if question_id is provided, filter incoming audio until matching question_id arrives
+                if input_id == "reset" {
+                    // Extract command from data or metadata
+                    let command = if let Some(cmd) = event_meta.get("command") {
+                        cmd.to_string()
+                    } else {
+                        // Try to read from data (StringArray)
+                        use arrow::array::AsArray;
+                        data.as_string::<i32>()
+                            .iter()
+                            .filter_map(|s| s)
+                            .next()
+                            .map(|s| s.to_string())
+                            .unwrap_or_default()
+                    };
+
+                    if command == "cancel" || command == "reset" {
+                        // Extract question_id for smart reset
+                        let new_question_id = event_meta.get("question_id").map(|s| s.to_string());
+
+                        if let Some(ref qid) = new_question_id {
+                            // Smart reset - clear buffer and enter filtering mode
+                            info!("🔇 Audio player SMART RESET: clearing buffer, filtering for question_id={}", qid);
+
+                            // Signal UI to clear its circular buffer (with force_mute)
+                            if let Some(ss) = shared_state {
+                                ss.audio.signal_clear();
+                            }
+
+                            // Enable filtering mode - reject audio until matching question_id arrives
+                            *filtering_mode = true;
+                            *reset_question_id = Some(qid.clone());
+
+                            // Clear session tracking
+                            session_start_sent_for.clear();
+                            active_switch_for.clear();
+                            *active_participant = None;
+                        } else {
+                            // Full reset - clear everything without filtering
+                            info!("🔇 Audio player FULL RESET: clearing buffer (no question_id)");
+
+                            // Signal UI to clear its circular buffer
+                            if let Some(ss) = shared_state {
+                                ss.audio.signal_clear();
+                            }
+
+                            // Disable filtering mode
+                            *filtering_mode = false;
+                            *reset_question_id = None;
+
+                            // Clear session tracking
+                            session_start_sent_for.clear();
+                            active_switch_for.clear();
+                            *active_participant = None;
+                        }
+                    }
+                    return; // Don't process reset as audio
+                }
+
                 // Handle audio inputs
                 if input_id.contains("audio") {
                     if let Some(audio_data) = Self::extract_audio(&data, &event_meta) {
                         let sample_count = audio_data.samples.len();
-                        debug!(
-                            "Received audio: {} samples, {}Hz from {}",
-                            sample_count, audio_data.sample_rate, input_id
-                        );
 
                         // Extract participant ID from input_id (e.g., "audio_student1" -> "student1")
                         let participant_id = input_id
@@ -202,6 +386,41 @@ impl AudioPlayerBridge {
 
                         // Get question_id from metadata
                         let question_id = event_meta.get("question_id");
+
+                        // Smart reset filtering: reject stale audio until matching question_id arrives
+                        if *filtering_mode {
+                            let incoming_qid = question_id.map(|s| s.to_string());
+                            let expected_qid = reset_question_id.as_ref();
+
+                            match (&incoming_qid, expected_qid) {
+                                (Some(incoming), Some(expected)) if incoming == expected => {
+                                    // First chunk with matching question_id - exit filtering mode
+                                    *filtering_mode = false;
+                                    info!(
+                                        "✅ Exiting filtering mode: received matching question_id={} from {}",
+                                        incoming, participant_id
+                                    );
+                                }
+                                (Some(incoming), Some(expected)) => {
+                                    // Reject stale audio - question_id doesn't match
+                                    debug!(
+                                        "🚫 Filtering out stale audio from {} (question_id={}, expected={})",
+                                        participant_id, incoming, expected
+                                    );
+                                    return; // Skip this audio chunk
+                                }
+                                _ => {
+                                    // No question_id in audio or reset - assume new content, exit filtering
+                                    *filtering_mode = false;
+                                    debug!("Exiting filtering mode: no question_id available");
+                                }
+                            }
+                        }
+
+                        debug!(
+                            "Received audio: {} samples, {}Hz from {}",
+                            sample_count, audio_data.sample_rate, input_id
+                        );
 
                         // Send session_start ONCE per question_id on FIRST audio chunk
                         // (matching conference-dashboard behavior: send on first audio OR when session_status="started")

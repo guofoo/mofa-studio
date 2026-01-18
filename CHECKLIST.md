@@ -550,61 +550,68 @@ pub enum TabId {
 
 ---
 
-### P1.3 - Sidebar Squeeze/Push Effect 🚧 TODO
+### P1.3 - Sidebar Squeeze/Push Effect ✅ DONE
 
 **Goal**: When clicking the hamburger button, instead of overlaying the sidebar, it should squeeze into the app window and push the main content to the right. Clicking again retracts the sidebar.
 
-#### Current Implementation Analysis
+#### Implementation Summary
 
-**How it works now:**
-- Sidebar is an **overlay** positioned absolutely at `abs_pos: (0, 52)` with `width: 250`
-- Slides in/out using X-axis translation animation
-- Main content is unaware of sidebar - stays full width underneath
-- Hover detection on hamburger triggers show/hide with 200ms cubic ease-out animation
+**Solution Implemented:** Hybrid Push Effect with pinned sidebar.
 
-**Key files:**
+The sidebar now pushes content to the right using margin animation synchronized with the sidebar slide-in:
+
+**Key Implementation** (`mofa-studio-shell/src/app.rs:806-847`):
+```rust
+/// Update pinned sidebar animation (squeeze effect)
+fn update_sidebar_pin_animation(&mut self, cx: &mut Cx) {
+    const ANIMATION_DURATION: f64 = 0.25;
+    const SIDEBAR_WIDTH: f64 = 250.0;
+
+    let elapsed = Cx::time_now() - self.sidebar_pin_anim_start;
+    let progress = (elapsed / ANIMATION_DURATION).min(1.0);
+    let eased = 1.0 - (1.0 - progress).powi(3); // Cubic ease-out
+
+    // Calculate sidebar width based on animation
+    let sidebar_width = if self.sidebar_pin_expanding {
+        SIDEBAR_WIDTH * eased
+    } else {
+        SIDEBAR_WIDTH * (1.0 - eased)
+    };
+
+    // Apply width and position to pinned sidebar
+    self.ui.view(ids!(pinned_sidebar)).apply_over(cx, live!{
+        width: (sidebar_width)
+        abs_pos: (dvec2(0.0, header_bottom))
+    });
+
+    // Apply left margin to content_area to push it (squeeze effect)
+    self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area)).apply_over(cx, live!{
+        margin: { left: (sidebar_width) }
+    });
+}
+```
+
+**How it works:**
+- Click hamburger → toggles `sidebar_pinned` state
+- `update_sidebar_pin_animation()` runs on NextFrame events
+- Sidebar width animates from 0→250px (or reverse)
+- Content area margin-left animates in sync (squeeze effect)
+- Cubic ease-out provides smooth animation
+
+**Files Modified:**
 - `mofa-studio-shell/src/app.rs`:
-  - Lines 69-95: Sidebar overlay definition
-  - Lines 528-563: Hover handling (`handle_sidebar_hover()`)
-  - Lines 639-687: Animation (`update_sidebar_animation()`, `start_sidebar_slide_in/out()`)
-- `mofa-studio-shell/src/widgets/sidebar.rs`: Sidebar widget
+  - Lines 271: `sidebar_pinned: bool` state field
+  - Lines 388: Animation state fields
+  - Lines 594: Click handler toggles pinned state
+  - Lines 788-804: `toggle_sidebar_pinned()` method
+  - Lines 806-847: `update_sidebar_pin_animation()` method
 
-#### Recommended Approach: Hybrid Push Effect
-
-Keep the overlay architecture, but animate the content area margin when sidebar opens:
-
-```
-1. When sidebar slides in (x: -250 → 0):
-   - Animate content area margin-left: 0 → 250px
-   - Content "squeezes" as sidebar pushes in
-
-2. When sidebar slides out (x: 0 → -250):
-   - Animate content area margin-left: 250px → 0
-   - Content expands back to full width
-
-3. Hover behavior unchanged:
-   - Same trigger detection
-   - Same close-on-leave logic
-```
-
-#### Implementation Steps
-
-- [ ] In `update_sidebar_animation()`, calculate content margin based on animation progress
-- [ ] Apply `margin: {left: X}` or `abs_pos` offset to `content_area` in dashboard
-- [ ] Sync margin animation with sidebar slide animation (same easing, same duration)
-- [ ] Ensure hover overlay detection bounds remain intact
-- [ ] Test dark mode compatibility
-- [ ] Update documentation
-
-#### Why This Works
-
-- Preserves hover overlay detection bounds
-- No flow/layout restructuring required
-- Same animation timing ensures smooth sync
-- Content responds visually without structural changes to layout
-
-**Files to Modify**:
-- `mofa-studio-shell/src/app.rs` - Add content margin animation in `update_sidebar_animation()`
+**Verification:**
+- [x] Sidebar slides in with 250ms cubic ease-out animation
+- [x] Content area margin animates in sync (squeeze effect)
+- [x] Click to toggle (not hover-based)
+- [x] Dark mode compatible
+- [x] Header remains fixed (only content_area moves)
 
 ---
 
@@ -1013,29 +1020,80 @@ Current `MofaApp` trait is **90% complete**:
 
 ## P3: Low Priority (Do Later)
 
-### P3.1 - Testing Infrastructure 📋 ASSESSED
+### P3.1 - Testing Infrastructure ✅ DONE
 
 **Challenge**: Makepad widgets are tightly coupled to rendering context (`Cx`), making traditional unit testing difficult.
 
-**Options Evaluated**:
+**Solution**: Focus on testing pure logic (data models, preferences, providers) rather than widget rendering.
 
-| Approach | Feasibility | Notes |
-|----------|-------------|-------|
-| Unit tests for pure logic | ✅ Possible | Data models, reducers, utilities |
-| Widget behavior tests | ⚠️ Limited | Requires mock Cx - not available |
-| Visual regression | ❌ Complex | Need screenshot comparison infra |
-| Integration tests | ⚠️ Manual | Run app, verify visually |
+#### Test Coverage Summary
 
-**Recommendation**: Focus on testing pure logic (data models, preferences, providers) rather than widget rendering.
+| Package | File | Tests | Status |
+|---------|------|-------|--------|
+| `mofa-settings` | `providers.rs` | 12 | ✅ |
+| `mofa-settings` | `preferences.rs` | 14 | ✅ |
+| `mofa-widgets` | `app_trait.rs` | 9 | ✅ |
+| `mofa-dora-bridge` | `shared_state.rs` | 5 | ✅ |
+| `mofa-dora-bridge` | `parser.rs` | 1 | ✅ |
+| `mofa-studio-shell` | `cli.rs` | 2 | ✅ |
+| **Total** | | **43** | ✅ |
 
-**Testable Components**:
-- `apps/mofa-settings/src/data/providers.rs` - Provider model logic
-- `apps/mofa-settings/src/data/preferences.rs` - Preferences load/save
-- `mofa-widgets/src/app_trait.rs` - AppRegistry operations
+#### Tests by Category
 
-- [ ] Add unit tests for `Preferences` load/save
-- [ ] Add unit tests for `Provider` model
-- [ ] Add unit tests for `AppRegistry`
+**Provider Model Tests** (`providers.rs`):
+- `test_provider_type_display_name` - ProviderType enum display
+- `test_provider_type_default` - Default provider type
+- `test_connection_status_display_text` - Status text rendering
+- `test_connection_status_is_connected` - Connection state checks
+- `test_generate_id` - ID generation from names
+- `test_status_color_disabled/enabled` - Status color by state
+- `test_new_custom_provider` - Custom provider creation
+- `test_get_supported_providers` - Built-in providers
+- `test_provider_default` - Default provider values
+
+**Preferences Tests** (`preferences.rs`):
+- `test_preferences_default` - Default state
+- `test_get_preferences_path` - Path resolution
+- `test_get_provider/get_provider_mut` - Provider lookups
+- `test_upsert_provider_insert/update` - CRUD operations
+- `test_remove_provider_custom/builtin/nonexistent` - Removal logic
+- `test_get_enabled_providers` - Filter by enabled
+- `test_merge_with_supported_providers` - Provider merging
+- `test_merge_does_not_duplicate` - Idempotent merge
+- `test_serialization_roundtrip` - JSON round-trip
+- `test_deserialization_with_missing_optional_fields` - Backwards compatibility
+
+**AppRegistry Tests** (`app_trait.rs`):
+- `test_app_info_fields/clone` - AppInfo struct
+- `test_app_registry_new/default` - Registry creation
+- `test_app_registry_register` - App registration
+- `test_app_registry_apps` - Listing apps
+- `test_app_registry_find_by_id/find_by_id_empty` - ID lookup
+- `test_app_registry_len_and_is_empty` - Size checks
+
+#### Running Tests
+
+```bash
+# Run all tests
+cargo test --workspace
+
+# Run only unit tests (skip doc tests)
+cargo test --workspace --lib
+
+# Run specific package tests
+cargo test -p mofa-settings
+cargo test -p mofa-widgets
+cargo test -p mofa-dora-bridge
+```
+
+#### Doc Tests
+
+Doc tests are marked `ignore` because they require Makepad's `Cx` context which isn't available in test environment. This is intentional - doc examples show usage patterns rather than runnable code.
+
+- [x] Add unit tests for `Preferences` load/save
+- [x] Add unit tests for `Provider` model
+- [x] Add unit tests for `AppRegistry`
+- [x] Verify all tests pass
 
 ---
 
@@ -1128,13 +1186,22 @@ Current `MofaApp` trait is **90% complete**:
 
 ## P3 Summary: Complete ✅
 
-**Status**: All actionable P3 items completed (2026-01-04)
+**Status**: All actionable P3 items completed (2026-01-10)
 
 | Task | Status | Outcome |
 |------|--------|---------|
-| P3.1 Testing Infrastructure | 📋 Assessed | Deferred - Makepad widget testing difficult |
+| P3.1 Testing Infrastructure | ✅ Done | 43 unit tests across 4 packages |
 | P3.2 Widget Library Expansion | 📋 Analyzed | Deferred - Current 7 widgets sufficient |
 | P3.3 Documentation | ✅ Done | All widgets documented with examples |
+
+**Testing Accomplishments**:
+- 43 unit tests total (all passing)
+- Provider model: 12 tests
+- Preferences: 14 tests
+- AppRegistry: 9 tests
+- Shared state: 5 tests
+- Parser: 1 test
+- CLI: 2 tests
 
 **Documentation Accomplishments**:
 - 7 widget modules fully documented
@@ -1144,7 +1211,6 @@ Current `MofaApp` trait is **90% complete**:
 - Dark mode implementation patterns
 
 **Deferred Items** (reassess when needed):
-- Unit tests for pure logic (Preferences, Provider, AppRegistry)
 - New widgets (StatusBadge, IconButton, etc.)
 - CONTRIBUTING.md
 
@@ -1172,7 +1238,7 @@ Current `MofaApp` trait is **90% complete**:
 - [x] ~~Centralized state store~~ → Analyzed, not feasible in Makepad (see STATE_MANAGEMENT_ANALYSIS.md)
 
 ### After P3 ✅ COMPLETE
-- [ ] ~~70%+ test coverage~~ → Deferred (Makepad widget testing difficult)
+- [x] 43 unit tests for pure logic (Preferences, Provider, AppRegistry, SharedState, Parser, CLI)
 - [x] 7 reusable widgets (fully documented with rustdoc)
 - [x] Complete API documentation (all widgets have usage examples)
 
@@ -1191,9 +1257,9 @@ Current `MofaApp` trait is **90% complete**:
 
 ---
 
-*Last Updated: 2026-01-09*
+*Last Updated: 2026-01-10*
 *P0 Completed: 2026-01-04*
 *P1 Completed: 2026-01-04*
 *P2 Completed: 2026-01-04*
-*P3 Completed: 2026-01-04*
+*P3 Completed: 2026-01-10* (P3.1 Testing Infrastructure added)
 *Verified by: Claude Code (supervisor review)*

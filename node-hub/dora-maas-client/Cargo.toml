@@ -20,7 +20,7 @@ path = "src/main.rs"
 async-trait = "0.1"
 bytes = "1.0"
 chrono = "0.4.31"
-dora-node-api = { git = "https://github.com/dora-rs/dora.git", tag = "v0.3.12", features = ["tracing"] }
+dora-node-api = { version = "0.4.0", features = ["tracing"] }
 eyre = "0.6.8"
 figment = { version = "0.10.0", features = ["env", "json", "toml", "yaml"] }
 futures = "0.3.31"

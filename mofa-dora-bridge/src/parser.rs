@@ -436,7 +436,11 @@ nodes:
         assert_eq!(parsed.mofa_nodes[0].id, "mofa-audio-player");
         assert_eq!(parsed.mofa_nodes[1].id, "mofa-system-log");
 
-        assert_eq!(parsed.log_sources.len(), 1);
+        // log_sources includes: tts/log and mofa-audio-player/buffer_status
+        assert_eq!(parsed.log_sources.len(), 2);
         assert_eq!(parsed.log_sources[0].node_id, "tts");
+        assert_eq!(parsed.log_sources[0].output_id, "log");
+        assert_eq!(parsed.log_sources[1].node_id, "mofa-audio-player");
+        assert_eq!(parsed.log_sources[1].output_id, "buffer_status");
     }
 }

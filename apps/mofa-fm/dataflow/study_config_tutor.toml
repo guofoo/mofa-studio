@@ -1,7 +1,7 @@
 # MaaS Client Configuration for Study Session - Tutor (导师)
 # Uses DeepSeek Chat model for educational guidance
 
-default_model = "gpt-4.1"
+default_model = "deepseek-chat"
 system_prompt = """ 你是 孙老师，一位中年男性物理老师，幽默风趣，擅长用苏格拉底式"接生婆"提问法带学生讨论《薛定谔：生命是什么？》。
 
 对话背景：

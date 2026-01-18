@@ -1,26 +1,108 @@
 //! # MoFA Dora Bridge
 //!
-//! Modular bridge system for connecting MoFA widgets to Dora dataflows.
-//! Each widget (audio player, system log, prompt input) connects as a separate
-//! dynamic node, enabling fine-grained control and independent lifecycle management.
+//! Communication layer between the MoFA Studio UI and the Dora dataflow runtime.
+//! Provides thread-safe shared state, data types, and bridge infrastructure for
+//! real-time voice chat applications.
 //!
-//! ## Architecture
+//! ## Architecture Overview
 //!
 //! ```text
-//! MoFA App
-//!   ├── mofa-audio-player (dynamic node)
-//!   ├── mofa-system-log (dynamic node)
-//!   └── mofa-prompt-input (dynamic node)
-//!          ↓
-//!     Dora Dataflow
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                         DORA DATAFLOW (Worker Threads)                       │
+//! ├─────────────────────┬─────────────────────┬─────────────────────────────────┤
+//! │  PromptInputBridge  │  AudioPlayerBridge  │  SystemLogBridge                │
+//! │                     │                     │                                 │
+//! │  state.chat.push()  │  state.audio.push() │  state.logs.push()              │
+//! └─────────┬───────────┴──────────┬──────────┴───────────────┬─────────────────┘
+//!           │         Direct write (no channels)              │
+//!           ▼                      ▼                          ▼
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                     SharedDoraState (Arc<...>)                              │
+//! │                                                                             │
+//! │  chat: ChatState        audio: AudioState       logs: DirtyVec<LogEntry>   │
+//! │  status: DirtyValue<DoraStatus>                                            │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//!           │          Read on UI timer (single poll)         │
+//!           ▼                      ▼                          ▼
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                        MoFA Studio UI (Main Thread)                         │
+//! │  poll_dora_state() - reads dirty data, updates widgets                      │
+//! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! ## Usage
+//! ## Key Components
 //!
-//! 1. Parse dataflow to discover mofa-xxx nodes
-//! 2. Create bridges for each discovered node
-//! 3. Connect bridges as dynamic nodes
-//! 4. Route data between widgets and dora
+//! ### Shared State ([`SharedDoraState`])
+//!
+//! Thread-safe state container with dirty tracking for efficient UI updates:
+//!
+//! - [`ChatState`] - Chat messages with streaming consolidation
+//! - [`AudioState`] - Ring buffer for audio chunks (consumed by audio player)
+//! - [`DirtyVec`] - Generic dirty-trackable collection
+//! - [`DirtyValue`] - Generic dirty-trackable single value
+//!
+//! ### Data Types ([`data`] module)
+//!
+//! - [`AudioData`] - Audio samples with metadata (participant_id, question_id)
+//! - [`ChatMessage`] - Chat message with sender, role, streaming status
+//! - [`LogEntry`] - Log entry with level, node_id, timestamp
+//! - [`ControlCommand`] - Dataflow control commands (start, stop, reset)
+//!
+//! ### Bridge Infrastructure
+//!
+//! - [`DoraBridge`] trait - Interface for widget bridges
+//! - [`BridgeState`] - Connection state (Disconnected, Connecting, Connected, Error)
+//! - [`MofaNodeType`] - Enum of known widget node types
+//!
+//! ## Usage Example
+//!
+//! ```rust,ignore
+//! use mofa_dora_bridge::{SharedDoraState, ChatMessage, AudioData};
+//!
+//! // Create shared state (typically done once at app startup)
+//! let state = SharedDoraState::new();
+//!
+//! // === PRODUCER (Dora bridge thread) ===
+//!
+//! // Push chat message (with automatic streaming consolidation)
+//! state.chat.push(ChatMessage {
+//!     content: "Hello".into(),
+//!     sender: "Tutor".into(),
+//!     is_streaming: true,
+//!     session_id: Some("session_1".into()),
+//!     ..Default::default()
+//! });
+//!
+//! // Push audio chunk
+//! state.audio.push(AudioData {
+//!     samples: vec![0.1, 0.2, 0.3],
+//!     sample_rate: 32000,
+//!     channels: 1,
+//!     participant_id: Some("tutor".into()),
+//!     question_id: Some("q1".into()),
+//! });
+//!
+//! // === CONSUMER (UI thread on timer) ===
+//!
+//! // Read chat only if changed (dirty tracking)
+//! if let Some(messages) = state.chat.read_if_dirty() {
+//!     update_chat_ui(messages);
+//! }
+//!
+//! // Drain audio chunks for playback
+//! let chunks = state.audio.drain();
+//! for chunk in chunks {
+//!     audio_player.write_samples(&chunk.samples);
+//! }
+//! ```
+//!
+//! ## Design Principles
+//!
+//! 1. **No Channels for Data** - Direct shared memory with dirty tracking
+//! 2. **Single Poll Point** - UI reads all state on one timer (no multiple poll loops)
+//! 3. **Streaming Consolidation** - ChatState automatically accumulates streaming chunks
+//! 4. **Lock-Free Reads** - AtomicBool for dirty flags, RwLock for data
+//! 5. **Bounded Collections** - All collections have max sizes to prevent memory growth
 
 pub mod bridge;
 pub mod controller;
@@ -39,8 +121,9 @@ pub use controller::{DataflowController, DataflowState};
 pub use data::{AudioData, ChatMessage, ControlCommand, DoraData, LogEntry};
 pub use dispatcher::{DynamicNodeDispatcher, WidgetBinding};
 pub use error::{BridgeError, BridgeResult};
+pub use shared_state::{SharedDoraState, DoraStatus, ChatState, AudioState, DirtyVec, DirtyValue, MicState};
+pub use widgets::AecControlCommand;
 pub use parser::{DataflowParser, EnvRequirement, LogSource, ParsedDataflow, ParsedNode};
-pub use shared_state::{AudioState, ChatState, DirtyValue, DirtyVec, DoraStatus, SharedDoraState};
 
 /// Prefix for MoFA built-in dynamic nodes in dataflow YAML
 pub const MOFA_NODE_PREFIX: &str = "mofa-";
@@ -78,12 +161,12 @@ impl MofaNodeType {
     /// Parse node type from node ID
     pub fn from_node_id(node_id: &str) -> Option<Self> {
         match node_id {
-            id if id.starts_with("mofa-audio-player") => Some(MofaNodeType::AudioPlayer),
-            id if id.starts_with("mofa-system-log") => Some(MofaNodeType::SystemLog),
-            id if id.starts_with("mofa-prompt-input") => Some(MofaNodeType::PromptInput),
-            id if id.starts_with("mofa-mic-input") => Some(MofaNodeType::MicInput),
-            id if id.starts_with("mofa-chat-viewer") => Some(MofaNodeType::ChatViewer),
-            id if id.starts_with("mofa-participant-panel") => Some(MofaNodeType::ParticipantPanel),
+            "mofa-audio-player" => Some(MofaNodeType::AudioPlayer),
+            "mofa-system-log" => Some(MofaNodeType::SystemLog),
+            "mofa-prompt-input" => Some(MofaNodeType::PromptInput),
+            "mofa-mic-input" => Some(MofaNodeType::MicInput),
+            "mofa-chat-viewer" => Some(MofaNodeType::ChatViewer),
+            "mofa-participant-panel" => Some(MofaNodeType::ParticipantPanel),
             _ => None,
         }
     }

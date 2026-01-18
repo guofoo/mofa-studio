@@ -677,12 +677,17 @@ impl ConferenceController {
         // 4. Reset policy to initial state
         self.policy.reset_counts();
 
+        // 5. Set last_speaker to "human" to avoid cold start logic
+        // This ensures tutor (priority) responds after human speaks,
+        // instead of student1 winning the ratio calculation during cold start.
+        self.policy.set_last_speaker(Some("human".to_string()));
+
         send_log(node, LogLevel::Info, self.log_level,
             &format!("✅ Reset complete - ready to start with question_id={} ({})",
                      self.current_question_id,
                      enhanced_id_debug_string(self.current_question_id)));
 
-        // 5. Trigger initial speaker (tutor)
+        // 6. Trigger initial speaker (tutor via priority)
         // Use existing logic to process first speaker
         self.process_next_speaker(node)?;
 
@@ -914,6 +919,84 @@ fn main() -> Result<()> {
                     // Just consume it to avoid crashes
                     let _buffer_data = data.as_primitive::<arrow::datatypes::Float64Type>();
                     send_log(&mut node, LogLevel::Debug, log_level, "📊 Received buffer_status (ignored)");
+                } else if id.as_str() == "human_speaking" {
+                    // IMMEDIATE interrupt when human starts speaking
+                    // Don't wait for ASR transcription - cancel everything NOW
+                    send_log(&mut node, LogLevel::Info, log_level, "🎤 Human speaking detected - IMMEDIATE INTERRUPT");
+
+                    // Send cancel to all LLMs immediately
+                    node.send_output(
+                        DataId::from("llm_control".to_string()),
+                        Default::default(),
+                        StringArray::from(vec!["cancel"]),
+                    )?;
+                    node.send_output(
+                        DataId::from("judge_prompt".to_string()),
+                        Default::default(),
+                        StringArray::from(vec!["cancel"]),
+                    )?;
+
+                    // Send cancel to text segmenter to clear pending text
+                    // Create metadata with cancel command and new question_id
+                    let mut cancel_metadata = std::collections::BTreeMap::new();
+                    cancel_metadata.insert(
+                        "command".to_string(),
+                        Parameter::String("cancel".to_string())
+                    );
+                    // Use a high question_id to ensure all old segments are cleared
+                    let interrupt_qid = controller.current_question_id.saturating_add(256);
+                    cancel_metadata.insert(
+                        "question_id".to_string(),
+                        Parameter::String(interrupt_qid.to_string())
+                    );
+                    node.send_output(
+                        DataId::from("segmenter_control".to_string()),
+                        cancel_metadata,
+                        StringArray::from(vec!["cancel"]),
+                    )?;
+
+                    send_log(&mut node, LogLevel::Info, log_level, "🔇 Sent immediate cancel to all LLMs and text segmenter");
+                } else if id.as_str() == "question_ended" {
+                    // Question ended signal - prolonged silence after speech
+                    // This means the user has finished their question/statement
+                    // ASR should have already sent the transcription via "human" input
+
+                    // Get question_id from metadata
+                    let question_id = metadata.parameters.get("question_id")
+                        .and_then(|p| match p {
+                            Parameter::Integer(i) => Some(*i as u32),
+                            Parameter::String(s) => s.parse().ok(),
+                            _ => None
+                        })
+                        .unwrap_or(0);
+
+                    send_log(&mut node, LogLevel::Info, log_level,
+                        &format!("⏱️ QUESTION_ENDED received (question_id={}) - user finished speaking", question_id));
+
+                    // The question_ended signal confirms the user has stopped speaking
+                    // Most handling is done via "human" (ASR transcription) input
+                    // But this signal can be used to:
+                    // 1. Confirm the cancel commands had time to propagate
+                    // 2. Clear any lingering state from the interrupt
+
+                    // Send a final clear to audio player to ensure buffer is empty
+                    let mut reset_metadata = std::collections::BTreeMap::new();
+                    reset_metadata.insert(
+                        "command".to_string(),
+                        Parameter::String("reset".to_string())
+                    );
+                    reset_metadata.insert(
+                        "question_id".to_string(),
+                        Parameter::String(controller.current_question_id.to_string())
+                    );
+                    node.send_output(
+                        DataId::from("llm_control".to_string()),
+                        reset_metadata,
+                        StringArray::from(vec!["reset"]),
+                    )?;
+
+                    send_log(&mut node, LogLevel::Info, log_level,
+                        "📤 Sent reset to audio pipeline (question_ended confirmation)");
                 } else {
                     // Participant input - extract text
                     let text_array = data.as_string::<i32>();

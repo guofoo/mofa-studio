@@ -1,7 +1,7 @@
 //! Provider View - Right panel for provider configuration
 
-use crate::data::{Provider, ProviderConnectionStatus, ProviderId};
 use makepad_widgets::*;
+use crate::data::{Provider, ProviderId, ProviderConnectionStatus};
 
 live_design! {
     use link::theme::*;
@@ -10,48 +10,50 @@ live_design! {
 
     use mofa_widgets::theme::*;
 
-    // Custom text input style
+    // TextInput for settings fields with proper light/dark mode styling
     SettingsTextInput = <TextInput> {
         width: Fill, height: 44
         padding: {left: 12, right: 12, top: 10, bottom: 10}
 
         draw_bg: {
-            instance radius: 6.0
-            instance border_width: 1.0
             instance dark_mode: 0.0
+            instance radius: 6.0
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                sdf.box(
-                    self.border_width,
-                    self.border_width,
-                    self.rect_size.x - self.border_width * 2.0,
-                    self.rect_size.y - self.border_width * 2.0,
-                    max(1.0, self.radius - self.border_width)
-                );
-                let bg = mix((SLATE_200), (SLATE_700), self.dark_mode);
-                let border = mix((SLATE_300), (SLATE_600), self.dark_mode);
-                sdf.fill(bg);
-                sdf.stroke(border, self.border_width);
+                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, self.radius);
+                // Light mode: light gray bg, Dark mode: dark bg
+                let light_bg = vec4(0.945, 0.961, 0.976, 1.0);  // SLATE_100
+                let dark_bg = vec4(0.20, 0.22, 0.25, 1.0);       // Dark gray
+                sdf.fill(mix(light_bg, dark_bg, self.dark_mode));
+                // Border
+                let light_border = vec4(0.82, 0.84, 0.86, 1.0);  // GRAY_300
+                let dark_border = vec4(0.35, 0.38, 0.42, 1.0);   // Dark border
+                sdf.stroke(mix(light_border, dark_border, self.dark_mode), 1.0);
                 return sdf.result;
             }
         }
 
         draw_text: {
             instance dark_mode: 0.0
-            text_style: <FONT_REGULAR>{ font_size: 11.0 }
+            text_style: <FONT_REGULAR>{ font_size: 13.0 }
 
             fn get_color(self) -> vec4 {
-                return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                // Light mode: dark text, Dark mode: light text
+                let light_text = vec4(0.1, 0.1, 0.12, 1.0);      // Near black
+                let dark_text = vec4(0.92, 0.93, 0.95, 1.0);     // Near white
+                return mix(light_text, dark_text, self.dark_mode);
             }
         }
 
         draw_selection: {
-            color: (BLUE_200)
-        }
-
-        draw_cursor: {
-            color: (ACCENT_BLUE)
+            fn pixel(self) -> vec4 {
+                let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                sdf.box(0.0, 0.0, self.rect_size.x, self.rect_size.y, 1.0);
+                // Visible blue selection highlight
+                sdf.fill(vec4(0.26, 0.52, 0.96, 0.4));  // Blue with 40% opacity
+                return sdf.result;
+            }
         }
     }
 
@@ -77,10 +79,43 @@ live_design! {
         }
     }
 
-    // Save button style
+    // Save button style with hover animation
     SaveButton = <Button> {
         width: Fit, height: 40
         padding: {left: 20, right: 20, top: 10, bottom: 10}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: {
+                        draw_bg: {hover: 0.0}
+                    }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: {
+                        draw_bg: {hover: 1.0}
+                    }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: {
+                        draw_bg: {pressed: 0.0}
+                    }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: {
+                        draw_bg: {pressed: 1.0}
+                    }
+                }
+            }
+        }
 
         draw_bg: {
             instance hover: 0.0
@@ -89,13 +124,23 @@ live_design! {
 
             fn pixel(self) -> vec4 {
                 let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                let color = mix(
-                    mix((ACCENT_BLUE), (BLUE_600), self.hover),
-                    (BLUE_700),
-                    self.pressed
+
+                // Base color transitions: normal -> hover -> pressed
+                let base_color = mix((ACCENT_BLUE), (BLUE_600), self.hover);
+                let color = mix(base_color, (BLUE_700), self.pressed);
+
+                // Slight scale effect on hover (glow simulation via larger box)
+                let glow = self.hover * 2.0;
+
+                sdf.box(
+                    1.0 - glow,
+                    1.0 - glow,
+                    self.rect_size.x - 2.0 + glow * 2.0,
+                    self.rect_size.y - 2.0 + glow * 2.0,
+                    self.radius
                 );
-                sdf.box(1.0, 1.0, self.rect_size.x - 2.0, self.rect_size.y - 2.0, self.radius);
                 sdf.fill(color);
+
                 return sdf.result;
             }
         }
@@ -112,10 +157,35 @@ live_design! {
         text: "Save"
     }
 
-    // Remove button style (for custom providers)
+    // Remove button style (for custom providers) with hover animation
     RemoveButton = <Button> {
         width: Fit, height: 40
         padding: {left: 20, right: 20, top: 10, bottom: 10}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
 
         draw_bg: {
             instance hover: 0.0
@@ -148,10 +218,35 @@ live_design! {
         text: "Remove"
     }
 
-    // Sync button - active state
+    // Sync button - active state with hover animation
     SyncButton = <Button> {
         width: Fit, height: 32
         padding: {left: 12, right: 12, top: 6, bottom: 6}
+
+        animator: {
+            hover = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.15}}
+                    apply: { draw_bg: {hover: 1.0} }
+                }
+            }
+            pressed = {
+                default: off,
+                off = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 0.0} }
+                }
+                on = {
+                    from: {all: Forward {duration: 0.1}}
+                    apply: { draw_bg: {pressed: 1.0} }
+                }
+            }
+        }
 
         draw_bg: {
             instance hover: 0.0
@@ -281,6 +376,26 @@ live_design! {
             width: Fill, height: Fill
             flow: Down
             spacing: 20
+
+            // Provider Name field (for custom providers)
+            name_section = <View> {
+                width: Fill, height: Fit
+                flow: Down
+                spacing: 6
+                visible: false
+
+                name_label = <SettingsLabel> {
+                    text: "Provider Name"
+                }
+
+                provider_name_input = <SettingsTextInput> {
+                    empty_text: "My Custom Provider"
+                }
+
+                name_hint = <SettingsHint> {
+                    text: "A display name for this provider"
+                }
+            }
 
             // API Host field
             host_section = <View> {
@@ -453,26 +568,6 @@ pub struct ProviderView {
 impl Widget for ProviderView {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
         self.view.handle_event(cx, event, scope);
-
-        // Handle model item clicks
-        let actions = match event {
-            Event::Actions(actions) => actions.as_slice(),
-            _ => return,
-        };
-
-        // Check for clicks on model items in the list
-        let models_list = self.view.portal_list(ids!(models_list));
-        for (index, item) in models_list.items_with_actions(actions) {
-            // Check if this item was clicked by looking at the finger_up action on the view
-            if item.as_view().finger_up(actions).is_some() {
-                // Update selected model
-                if index < self.available_models.len() {
-                    self.selected_model_index = Some(index);
-                    self.selected_model = Some(self.available_models[index].clone());
-                    self.view.redraw(cx);
-                }
-            }
-        }
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
@@ -493,12 +588,9 @@ impl Widget for ProviderView {
 
                         // Set the radio button selected state
                         let selected_val = if is_selected { 1.0 } else { 0.0 };
-                        item.view(ids!(radio_circle)).apply_over(
-                            cx,
-                            live! {
-                                draw_bg: { selected: (selected_val) }
-                            },
-                        );
+                        item.view(ids!(radio_circle)).apply_over(cx, live!{
+                            draw_bg: { selected: (selected_val) }
+                        });
 
                         item.draw_all(cx, scope);
                     }
@@ -517,51 +609,36 @@ impl ProviderViewRef {
             inner.show_content = true;
             inner.available_models = provider.models.clone();
             inner.selected_model = provider.models.first().cloned();
-            inner.selected_model_index = if provider.models.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
+            inner.selected_model_index = if provider.models.is_empty() { None } else { Some(0) };
 
             // Update header
-            inner
-                .view
-                .label(ids!(provider_name))
-                .set_text(cx, &provider.name);
+            inner.view.label(ids!(provider_name)).set_text(cx, &provider.name);
 
             // Show content, hide empty state
             inner.view.view(ids!(content)).set_visible(cx, true);
             inner.view.view(ids!(empty_state)).set_visible(cx, false);
 
+            // Show name section for custom providers, allow editing name
+            inner.view.view(ids!(content.name_section)).set_visible(cx, provider.is_custom);
+            if provider.is_custom {
+                inner.view.text_input(ids!(provider_name_input)).set_text(cx, &provider.name);
+            }
+
             // Set input values
-            inner
-                .view
-                .text_input(ids!(api_host_input))
-                .set_text(cx, &provider.url);
-            inner
-                .view
-                .text_input(ids!(api_key_input))
-                .set_text(cx, provider.api_key.as_deref().unwrap_or(""));
+            inner.view.text_input(ids!(api_host_input)).set_text(cx, &provider.url);
+            inner.view.text_input(ids!(api_key_input)).set_text(cx,
+                provider.api_key.as_deref().unwrap_or("")
+            );
 
             // Update sync button state based on API key
-            let has_api_key = provider
-                .api_key
-                .as_ref()
-                .map(|k| !k.is_empty())
-                .unwrap_or(false);
-            inner.view.button(ids!(sync_button)).apply_over(
-                cx,
-                live! {
-                    draw_bg: { disabled: (if has_api_key { 0.0 } else { 1.0 }) }
-                },
-            );
+            let has_api_key = provider.api_key.as_ref().map(|k| !k.is_empty()).unwrap_or(false);
+            inner.view.button(ids!(sync_button)).apply_over(cx, live!{
+                draw_bg: { disabled: (if has_api_key { 0.0 } else { 1.0 }) }
+            });
 
             // Update sync status text
             if !has_api_key {
-                inner
-                    .view
-                    .label(ids!(sync_status))
-                    .set_text(cx, "Enter API key to sync models");
+                inner.view.label(ids!(sync_status)).set_text(cx, "Enter API key to sync models");
             } else {
                 inner.view.label(ids!(sync_status)).set_text(cx, "");
             }
@@ -570,10 +647,7 @@ impl ProviderViewRef {
             Self::display_models_internal(&mut inner, cx, &provider.models);
 
             // Show/hide remove button for custom providers
-            inner
-                .view
-                .button(ids!(remove_button))
-                .set_visible(cx, provider.is_custom);
+            inner.view.button(ids!(remove_button)).set_visible(cx, provider.is_custom);
 
             // Update status
             let status_text = match &provider.connection_status {
@@ -582,26 +656,16 @@ impl ProviderViewRef {
                 ProviderConnectionStatus::Connected => "Connected",
                 ProviderConnectionStatus::Error(_) => "Error",
             };
-            inner
-                .view
-                .label(ids!(status_label))
-                .set_text(cx, status_text);
+            inner.view.label(ids!(status_label)).set_text(cx, status_text);
 
             inner.view.redraw(cx);
         }
     }
 
     /// Internal helper to display models
-    fn display_models_internal(
-        inner: &mut std::cell::RefMut<ProviderView>,
-        cx: &mut Cx,
-        models: &[String],
-    ) {
+    fn display_models_internal(inner: &mut std::cell::RefMut<ProviderView>, cx: &mut Cx, models: &[String]) {
         // Show/hide no models label based on whether we have models
-        inner
-            .view
-            .label(ids!(no_models_label))
-            .set_visible(cx, models.is_empty());
+        inner.view.label(ids!(no_models_label)).set_visible(cx, models.is_empty());
 
         // Store models in the struct - the PortalList will render them in draw_walk
         inner.available_models = models.to_vec();
@@ -628,15 +692,9 @@ impl ProviderViewRef {
             Self::display_models_internal(&mut inner, cx, &models);
 
             if models.is_empty() {
-                inner
-                    .view
-                    .label(ids!(sync_status))
-                    .set_text(cx, "No models found");
+                inner.view.label(ids!(sync_status)).set_text(cx, "No models found");
             } else {
-                inner
-                    .view
-                    .label(ids!(sync_status))
-                    .set_text(cx, &format!("Found {} models", models.len()));
+                inner.view.label(ids!(sync_status)).set_text(cx, &format!("Found {} models", models.len()));
             }
 
             inner.view.redraw(cx);
@@ -656,10 +714,7 @@ impl ProviderViewRef {
             inner.view.view(ids!(content)).set_visible(cx, false);
             inner.view.view(ids!(empty_state)).set_visible(cx, true);
 
-            inner
-                .view
-                .label(ids!(provider_name))
-                .set_text(cx, "Select a Provider");
+            inner.view.label(ids!(provider_name)).set_text(cx, "Select a Provider");
             inner.view.label(ids!(status_label)).set_text(cx, "");
 
             inner.view.redraw(cx);
@@ -668,24 +723,23 @@ impl ProviderViewRef {
 
     /// Get the current provider ID being edited
     pub fn current_provider_id(&self) -> Option<ProviderId> {
-        self.borrow()
-            .and_then(|inner| inner.current_provider_id.clone())
+        self.borrow().and_then(|inner| inner.current_provider_id.clone())
     }
 
-    /// Get the current form values
-    pub fn get_form_values(&self) -> Option<(String, Option<String>)> {
+    /// Get the current form values (name, api_host, api_key)
+    pub fn get_form_values(&self) -> Option<(Option<String>, String, Option<String>)> {
         self.borrow().map(|inner| {
+            let name = {
+                let n = inner.view.text_input(ids!(provider_name_input)).text();
+                if n.is_empty() { None } else { Some(n) }
+            };
             let api_host = inner.view.text_input(ids!(api_host_input)).text();
             let api_key = {
                 let key = inner.view.text_input(ids!(api_key_input)).text();
-                if key.is_empty() {
-                    None
-                } else {
-                    Some(key)
-                }
+                if key.is_empty() { None } else { Some(key) }
             };
 
-            (api_host, api_key)
+            (name, api_host, api_key)
         })
     }
 
@@ -693,116 +747,72 @@ impl ProviderViewRef {
     pub fn update_dark_mode(&self, cx: &mut Cx, dark_mode: f64) {
         if let Some(mut inner) = self.borrow_mut() {
             // Main container background
-            inner.view.apply_over(
-                cx,
-                live! {
-                    draw_bg: { dark_mode: (dark_mode) }
-                },
-            );
+            inner.view.apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+            });
 
             // Header labels
-            inner.view.label(ids!(header.provider_name)).apply_over(
-                cx,
-                live! {
-                    draw_text: { dark_mode: (dark_mode) }
-                },
-            );
-            inner.view.label(ids!(header.status_label)).apply_over(
-                cx,
-                live! {
-                    draw_text: { dark_mode: (dark_mode) }
-                },
-            );
+            inner.view.label(ids!(header.provider_name)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(header.status_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+
+            // Name section (for custom providers)
+            inner.view.label(ids!(content.name_section.name_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(content.name_section.name_hint)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.text_input(ids!(content.name_section.provider_name_input)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+                draw_text: { dark_mode: (dark_mode) }
+            });
 
             // Host section
-            inner
-                .view
-                .label(ids!(content.host_section.host_label))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
-            // NOTE: TextInput apply_over causes "target class not found" errors
-            inner
-                .view
-                .label(ids!(content.host_section.host_hint))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
+            inner.view.label(ids!(content.host_section.host_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(content.host_section.host_hint)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.text_input(ids!(content.host_section.api_host_input)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+                draw_text: { dark_mode: (dark_mode) }
+            });
 
             // Key section
-            inner
-                .view
-                .label(ids!(content.key_section.key_label))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
-            // NOTE: TextInput apply_over causes "target class not found" errors
-            inner
-                .view
-                .label(ids!(content.key_section.key_hint))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
+            inner.view.label(ids!(content.key_section.key_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(content.key_section.key_hint)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.text_input(ids!(content.key_section.api_key_input)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+                draw_text: { dark_mode: (dark_mode) }
+            });
 
             // Models section
-            inner
-                .view
-                .label(ids!(content.models_section.models_header.models_label))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
-            inner
-                .view
-                .label(ids!(content.models_section.sync_status))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
-            inner
-                .view
-                .label(ids!(
-                    content.models_section.models_list_container.no_models_label
-                ))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
+            inner.view.label(ids!(content.models_section.models_header.models_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(content.models_section.sync_status)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(content.models_section.models_list_container.no_models_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
 
             // Empty state labels
-            inner.view.label(ids!(empty_state.empty_title)).apply_over(
-                cx,
-                live! {
-                    draw_text: { dark_mode: (dark_mode) }
-                },
-            );
-            inner
-                .view
-                .label(ids!(empty_state.empty_subtitle))
-                .apply_over(
-                    cx,
-                    live! {
-                        draw_text: { dark_mode: (dark_mode) }
-                    },
-                );
+            inner.view.label(ids!(empty_state.empty_title)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.label(ids!(empty_state.empty_subtitle)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
 
             inner.view.redraw(cx);
         }

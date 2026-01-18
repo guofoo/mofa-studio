@@ -26,6 +26,14 @@ kind = "deepseek"
 api_key = "env:DEEPSEEK_API_KEY"
 proxy = false
 
+# NVIDIA Provider (OpenAI-compatible API)
+[[providers]]
+id = "nvidia"
+kind = "openai"
+api_key = "env:NVIDIA_API_KEY"
+api_url = "https://integrate.api.nvidia.com/v1"
+proxy = false
+
 # OpenAI Models
 [[models]]
 id = "gpt-4o"
@@ -51,3 +59,24 @@ route = { provider = "deepseek", model = "deepseek-chat" }
 [[models]]
 id = "deepseek-reasoner"
 route = { provider = "deepseek", model = "deepseek-reasoner" }
+
+# NVIDIA Models
+[[models]]
+id = "nvidia/deepseek-r1"
+route = { provider = "nvidia", model = "deepseek-ai/deepseek-r1" }
+
+[[models]]
+id = "nvidia/deepseek-v3.2"
+route = { provider = "nvidia", model = "deepseek-ai/deepseek-v3.2" }
+
+[[models]]
+id = "nvidia/kimi-k2"
+route = { provider = "nvidia", model = "moonshotai/kimi-k2-thinking" }
+
+[[models]]
+id = "nvidia/minimax-m2"
+route = { provider = "nvidia", model = "minimaxai/minimax-m2" }
+
+[[models]]
+id = "nvidia/llama-3.3-70b"
+route = { provider = "nvidia", model = "meta/llama-3.3-70b-instruct" }

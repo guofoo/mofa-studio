@@ -1,4 +1,37 @@
-//! Data types for MoFA-Dora communication
+//! # Data Types for MoFA-Dora Communication
+//!
+//! This module defines the core data types exchanged between the MoFA Studio UI
+//! and the Dora dataflow runtime.
+//!
+//! ## Overview
+//!
+//! | Type | Purpose | Direction |
+//! |------|---------|-----------|
+//! | [`AudioData`] | TTS audio samples with metadata | Dora → UI |
+//! | [`ChatMessage`] | Conversation messages | Dora → UI |
+//! | [`LogEntry`] | System/debug logs | Dora → UI |
+//! | [`ControlCommand`] | Dataflow control commands | UI → Dora |
+//! | [`DoraData`] | Unified wrapper for all data types | Both |
+//!
+//! ## Key Design Decisions
+//!
+//! ### Audio with Metadata
+//!
+//! [`AudioData`] includes `participant_id` and `question_id` to support:
+//! - Multi-speaker visualization (which participant is speaking)
+//! - Smart reset (discard stale audio from previous questions)
+//!
+//! ### Streaming Support
+//!
+//! [`ChatMessage`] includes `is_streaming` and `session_id` to support:
+//! - Progressive display of LLM responses
+//! - Automatic consolidation of streaming chunks (see [`ChatState`](crate::ChatState))
+//!
+//! ### Log Levels
+//!
+//! [`LogLevel`] is ordered for filtering:
+//! - Debug < Info < Warning < Error
+//! - UI can filter to show only logs >= a threshold
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -62,7 +95,41 @@ impl DoraData {
     }
 }
 
-/// Audio data with metadata
+/// Audio data with metadata for playback and visualization.
+///
+/// Represents a chunk of audio samples from TTS synthesis, along with
+/// metadata for multi-speaker scenarios and smart reset functionality.
+///
+/// # Fields
+///
+/// | Field | Purpose |
+/// |-------|---------|
+/// | `samples` | Raw f32 audio samples, normalized to [-1.0, 1.0] |
+/// | `sample_rate` | Sample rate in Hz (typically 32000 for TTS) |
+/// | `channels` | 1 = mono, 2 = stereo |
+/// | `participant_id` | Speaker ID for multi-participant visualization |
+/// | `question_id` | Question ID for smart reset filtering |
+///
+/// # Smart Reset
+///
+/// The `question_id` field enables "smart reset" - when switching questions,
+/// audio chunks with old question IDs can be discarded while keeping chunks
+/// for the new question. This prevents playing stale audio from the previous
+/// conversation turn.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let audio = AudioData {
+///     samples: vec![0.1, 0.2, -0.1, 0.0],
+///     sample_rate: 32000,
+///     channels: 1,
+///     participant_id: Some("tutor".into()),
+///     question_id: Some("q42".into()),
+/// };
+///
+/// println!("Duration: {:.2}s", audio.duration_secs());
+/// ```
 #[derive(Debug, Clone)]
 pub struct AudioData {
     /// Audio samples in f32 format (-1.0 to 1.0)
@@ -170,7 +237,40 @@ impl LogLevel {
     }
 }
 
-/// Chat message for conversation display
+/// Chat message for conversation display.
+///
+/// Represents a single message in the conversation, with support for
+/// streaming (progressive LLM output) and multi-participant scenarios.
+///
+/// # Streaming Messages
+///
+/// When `is_streaming` is true, the message is incomplete and may be
+/// updated with additional content. The [`ChatState`](crate::ChatState)
+/// automatically consolidates streaming chunks from the same sender/session.
+///
+/// # Session ID
+///
+/// The `session_id` field is critical for proper streaming consolidation:
+/// - Messages with matching `sender` AND `session_id` are consolidated
+/// - Messages without `session_id` are never consolidated (safety feature)
+/// - Different session IDs ensure isolation between participants
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // User message
+/// let user_msg = ChatMessage::user("What is the capital of France?");
+///
+/// // Streaming assistant response
+/// let streaming_msg = ChatMessage {
+///     content: "The capital".into(),
+///     sender: "Assistant".into(),
+///     role: MessageRole::Assistant,
+///     timestamp: current_timestamp(),
+///     is_streaming: true,
+///     session_id: Some("session_123".into()),
+/// };
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     /// Message content
@@ -183,7 +283,7 @@ pub struct ChatMessage {
     pub timestamp: u64,
     /// Whether this is a streaming/partial message
     pub is_streaming: bool,
-    /// Session/conversation ID
+    /// Session/conversation ID for streaming consolidation
     pub session_id: Option<String>,
 }
 

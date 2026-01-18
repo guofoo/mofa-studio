@@ -168,10 +168,10 @@ class StreamingMoYoYoTTSWrapper:
             # Fall back to hardcoded configurations for backward compatibility
             voice_configs = {
                 "doubao": {
-                    "t2s_weights": "GPT_weights/doubao_best_gpt.ckpt",
-                    "vits_weights": "SoVITS_weights/doubao_best_sovits.pth",
-                    "ref_audio": "ref_audios/doubao_ref_mix.wav",
-                    "prompt_text": "最近工作太忙了，天天都在赶deadline，真希望能有个long vacation, 好好放松一下。",
+                    "t2s_weights": "GPT_weights/doubao-mixed.ckpt",
+                    "vits_weights": "SoVITS_weights/doubao-mixed.pth",
+                    "ref_audio": "ref_audios/doubao_ref_mix_new.wav",
+                    "prompt_text": "这家resturant的steak很有名，但是vegetable salad的price有点贵",
                 },
                 "luoxiang": {
                     "t2s_weights": "GPT_weights/luoxiang_best_gpt.ckpt",

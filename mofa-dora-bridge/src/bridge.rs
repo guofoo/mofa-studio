@@ -1,9 +1,54 @@
-//! DoraBridge trait and common bridge functionality
+//! # DoraBridge Trait and Bridge Infrastructure
+//!
+//! This module defines the [`DoraBridge`] trait and [`BridgeState`] enum
+//! for connecting MoFA widgets to Dora dataflows as dynamic nodes.
+//!
+//! ## Architecture
+//!
+//! Each widget type (audio player, chat, logs) has its own bridge that:
+//! 1. Connects to Dora as a dynamic node
+//! 2. Receives data from Dora inputs
+//! 3. Pushes data to [`SharedDoraState`](crate::SharedDoraState) for UI consumption
+//!
+//! ```text
+//! ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+//! │  Dora Dataflow  │────▶│  DoraBridge     │────▶│ SharedDoraState │
+//! │  (TTS audio)    │     │  (impl trait)   │     │  (UI reads)     │
+//! └─────────────────┘     └─────────────────┘     └─────────────────┘
+//! ```
+//!
+//! ## Available Bridges
+//!
+//! | Bridge | Node ID | Purpose |
+//! |--------|---------|---------|
+//! | AudioPlayerBridge | `mofa-audio-player` | Receives TTS audio |
+//! | PromptInputBridge | `mofa-prompt-input` | Receives chat messages |
+//! | SystemLogBridge | `mofa-system-log` | Receives log entries |
+//!
+//! ## Connection States
+//!
+//! Bridges progress through these states:
+//!
+//! ```text
+//! Disconnected → Connecting → Connected → Disconnecting → Disconnected
+//!                    ↓                         ↓
+//!                  Error ←───────────────────←─┘
+//! ```
 
 use crate::data::DoraData;
 use crate::error::BridgeResult;
 
-/// Bridge connection state
+/// Connection state for a Dora bridge.
+///
+/// Represents the lifecycle of a bridge connection:
+///
+/// | State | Description |
+/// |-------|-------------|
+/// | `Disconnected` | Not connected to Dora |
+/// | `Connecting` | Connection in progress |
+/// | `Connected` | Ready to send/receive data |
+/// | `Disconnecting` | Graceful shutdown in progress |
+/// | `Error` | Connection failed or was lost |
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BridgeState {
     /// Bridge is disconnected
@@ -24,11 +69,37 @@ impl Default for BridgeState {
     }
 }
 
-/// Core trait for all dora bridges
+/// Core trait for all Dora bridges.
 ///
-/// Each widget implements this trait to connect as a dynamic node.
-/// Status updates (connected/disconnected/error) are communicated via SharedDoraState.
-/// Data (audio/chat/logs) is pushed directly to SharedDoraState for UI consumption.
+/// Implement this trait to create a new widget bridge that connects to
+/// Dora as a dynamic node and communicates with the UI via [`SharedDoraState`](crate::SharedDoraState).
+///
+/// # Implementation Notes
+///
+/// - Bridges run in worker threads (must be `Send + Sync`)
+/// - Data is pushed to `SharedDoraState`, not returned directly
+/// - Status updates go through `SharedDoraState::status`
+///
+/// # Example
+///
+/// ```rust,ignore
+/// struct MyBridge {
+///     state: BridgeState,
+///     node_id: String,
+///     shared_state: Arc<SharedDoraState>,
+/// }
+///
+/// impl DoraBridge for MyBridge {
+///     fn node_id(&self) -> &str { &self.node_id }
+///     fn state(&self) -> BridgeState { self.state }
+///     fn connect(&mut self) -> BridgeResult<()> {
+///         self.state = BridgeState::Connected;
+///         self.shared_state.add_bridge(self.node_id.clone());
+///         Ok(())
+///     }
+///     // ... other methods
+/// }
+/// ```
 pub trait DoraBridge: Send + Sync {
     /// Get the node ID for this bridge (e.g., "mofa-audio-player")
     fn node_id(&self) -> &str;
