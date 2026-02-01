@@ -1,0 +1,35 @@
+nodes:
+  # Text source - sends test sentences one at a time
+  - id: text-source
+    build: pip install pyarrow dora-rs
+    path: text_source.py
+    inputs:
+      tick: dora/timer/millis/500  # Tick every 500ms
+    outputs:
+      - text
+
+  # GPT-SoVITS MLX TTS node
+  - id: gpt-sovits-tts
+    path: ../target/release/dora-gpt-sovits-mlx
+    inputs:
+      text: text-source/text
+    outputs:
+      - audio
+      - segment_complete
+      - log
+    env:
+      GPT_SOVITS_MODEL_DIR: $HOME/.dora/models/primespeech/gpt-sovits-mlx
+      REF_AUDIO: $HOME/.dora/models/primespeech/moyoyo/ref_audios/doubao_ref_mix_new.wav
+      REF_TEXT: "这家resturant的steak很有名，但是vegetable salad的price有点贵"
+      SPEED_FACTOR: "1.0"
+      TOP_K: "5"
+      TEMPERATURE: "1.0"
+      RUST_LOG: info
+
+  # Audio sink - saves or plays output audio
+  - id: audio-sink
+    build: pip install pyarrow dora-rs scipy numpy
+    path: audio_sink.py
+    inputs:
+      audio: gpt-sovits-tts/audio
+      segment_complete: gpt-sovits-tts/segment_complete
