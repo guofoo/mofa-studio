@@ -7,6 +7,11 @@
 //! - Input `text`: Arrow string array with metadata (question_id, session_status)
 //! - Output `audio`: Arrow float32 array with metadata (sample_rate, duration, question_id)
 //! - Output `segment_complete`: Arrow string ("completed"/"error") with metadata
+//!
+//! Streaming mode (RETURN_FRAGMENT=true):
+//! - Splits text into sentences and processes each separately
+//! - Emits audio after each sentence for lower latency
+//! - Emits segment_complete only after all sentences are done
 
 use dora_node_api::{
     arrow::array::{Array, Float32Array, StringArray},
@@ -17,6 +22,47 @@ use eyre::Result;
 use gpt_sovits_mlx::voice_clone::{VoiceCloner, VoiceClonerConfig, SynthesisOptions};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
+
+/// Split text into sentences for streaming synthesis.
+///
+/// Splits on Chinese/English sentence-ending punctuation while preserving
+/// the punctuation in each segment.
+fn split_into_sentences(text: &str, min_chars: usize) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+
+    for c in text.chars() {
+        current.push(c);
+
+        // Check for sentence-ending punctuation
+        let is_sentence_end = matches!(c,
+            '。' | '！' | '？' | '；' |  // Chinese
+            '.' | '!' | '?' | ';'       // English
+        );
+
+        if is_sentence_end && current.len() >= min_chars {
+            let trimmed = current.trim().to_string();
+            if !trimmed.is_empty() {
+                sentences.push(trimmed);
+            }
+            current = String::new();
+        }
+    }
+
+    // Don't forget the last segment (may not end with punctuation)
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        // If last segment is too short, merge with previous
+        if trimmed.len() < min_chars && !sentences.is_empty() {
+            let last = sentences.pop().unwrap();
+            sentences.push(format!("{}{}", last, trimmed));
+        } else {
+            sentences.push(trimmed);
+        }
+    }
+
+    sentences
+}
 
 mod config;
 use config::Config;
@@ -188,91 +234,181 @@ fn main() -> Result<()> {
 
                     let synth_start = Instant::now();
 
-                    // Synthesize (with optional timeout)
-                    let synth_result = if let Some(timeout) = synthesis_timeout {
-                        let options = SynthesisOptions::with_timeout(timeout);
-                        cloner.synthesize_with_options(&text, options)
+                    // Determine sentences to process
+                    let sentences = if config.return_fragment {
+                        split_into_sentences(&text, config.fragment_min_chars)
                     } else {
-                        cloner.synthesize(&text)
+                        vec![text.clone()]
                     };
 
-                    match synth_result {
-                        Ok(audio) => {
-                            let elapsed = synth_start.elapsed().as_secs_f32();
-                            let rtf = elapsed / audio.duration;
+                    let total_sentences = sentences.len();
+                    if config.return_fragment && total_sentences > 1 {
+                        log::info!(
+                            "Streaming mode: split into {} sentences",
+                            total_sentences
+                        );
+                    }
 
-                            total_segments += 1;
-                            total_audio_duration += audio.duration as f64;
-                            total_processing_time += elapsed as f64;
+                    let mut had_error = false;
+                    let mut last_error: Option<String> = None;
 
+                    for (idx, sentence) in sentences.iter().enumerate() {
+                        let is_final = idx == total_sentences - 1;
+                        let sentence_start = Instant::now();
+
+                        if config.return_fragment {
+                            log::debug!(
+                                "Processing sentence {}/{}: \"{}\"",
+                                idx + 1,
+                                total_sentences,
+                                truncate_text(sentence, 30)
+                            );
+                        }
+
+                        // Synthesize (with optional timeout)
+                        let synth_result = if let Some(timeout) = synthesis_timeout {
+                            let options = SynthesisOptions::with_timeout(timeout);
+                            cloner.synthesize_with_options(sentence, options)
+                        } else {
+                            cloner.synthesize(sentence)
+                        };
+
+                        match synth_result {
+                            Ok(audio) => {
+                                let elapsed = sentence_start.elapsed().as_secs_f32();
+                                let rtf = elapsed / audio.duration;
+
+                                total_segments += 1;
+                                total_audio_duration += audio.duration as f64;
+                                total_processing_time += elapsed as f64;
+
+                                if config.return_fragment {
+                                    log::info!(
+                                        "Sentence {}/{}: {:.2}s audio in {:.2}s (RTF={:.2}x)",
+                                        idx + 1,
+                                        total_sentences,
+                                        audio.duration,
+                                        elapsed,
+                                        rtf
+                                    );
+                                } else {
+                                    log::info!(
+                                        "Synthesis complete: {:.2}s audio in {:.2}s (RTF={:.2}x)",
+                                        audio.duration,
+                                        elapsed,
+                                        rtf
+                                    );
+                                }
+
+                                // Send audio output with silence padding (fragment_interval)
+                                let mut samples = audio.samples.clone();
+                                let mut output_duration = audio.duration;
+
+                                // Append silence between fragments (not after the last one)
+                                if config.return_fragment && !is_final && config.fragment_interval > 0.0 {
+                                    let silence_samples = (audio.sample_rate as f32 * config.fragment_interval) as usize;
+                                    samples.extend(vec![0.0f32; silence_samples]);
+                                    output_duration += config.fragment_interval;
+                                }
+
+                                let audio_array = Float32Array::from(samples);
+                                let mut out_meta = BTreeMap::new();
+                                out_meta.insert(
+                                    "question_id".to_string(),
+                                    Parameter::String(question_id.clone()),
+                                );
+                                out_meta.insert(
+                                    "session_status".to_string(),
+                                    Parameter::String(session_status.clone()),
+                                );
+                                out_meta.insert(
+                                    "sample_rate".to_string(),
+                                    Parameter::Integer(audio.sample_rate as i64),
+                                );
+                                out_meta.insert(
+                                    "duration".to_string(),
+                                    Parameter::String(format!("{:.3}", output_duration)),
+                                );
+                                out_meta.insert(
+                                    "is_final".to_string(),
+                                    Parameter::String(is_final.to_string()),
+                                );
+                                out_meta.insert(
+                                    "fragment_index".to_string(),
+                                    Parameter::Integer(idx as i64),
+                                );
+                                out_meta.insert(
+                                    "fragment_total".to_string(),
+                                    Parameter::Integer(total_sentences as i64),
+                                );
+
+                                node.send_output(
+                                    "audio".into(),
+                                    out_meta.clone(),
+                                    audio_array,
+                                )?;
+                            }
+                            Err(e) => {
+                                log::error!("Synthesis failed for sentence {}: {}", idx + 1, e);
+                                had_error = true;
+                                last_error = Some(e.to_string());
+
+                                // In streaming mode, continue with remaining sentences
+                                if !config.return_fragment {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Send completion signal after all sentences
+                    if had_error {
+                        send_log(
+                            &mut node,
+                            "ERROR",
+                            &format!(
+                                "Synthesis failed for '{}': {}",
+                                truncate_text(&text, 30),
+                                last_error.as_deref().unwrap_or("unknown error")
+                            ),
+                        )?;
+
+                        let mut meta = BTreeMap::new();
+                        meta.insert(
+                            "question_id".to_string(),
+                            Parameter::String(question_id),
+                        );
+                        meta.insert(
+                            "session_status".to_string(),
+                            Parameter::String("error".to_string()),
+                        );
+                        meta.insert(
+                            "error".to_string(),
+                            Parameter::String(last_error.unwrap_or_else(|| "unknown".to_string())),
+                        );
+                        meta.insert(
+                            "error_stage".to_string(),
+                            Parameter::String("synthesis".to_string()),
+                        );
+
+                        let arr = StringArray::from(vec!["error"]);
+                        node.send_output("segment_complete".into(), meta, arr)?;
+                    } else {
+                        let total_elapsed = synth_start.elapsed().as_secs_f32();
+                        if config.return_fragment && total_sentences > 1 {
                             log::info!(
-                                "Synthesis complete: {:.2}s audio in {:.2}s (RTF={:.2}x)",
-                                audio.duration,
-                                elapsed,
-                                rtf
+                                "All {} sentences completed in {:.2}s",
+                                total_sentences,
+                                total_elapsed
                             );
-
-                            // Send audio output
-                            let audio_array = Float32Array::from(audio.samples.clone());
-                            let mut out_meta = BTreeMap::new();
-                            out_meta.insert(
-                                "question_id".to_string(),
-                                Parameter::String(question_id.clone()),
-                            );
-                            out_meta.insert(
-                                "session_status".to_string(),
-                                Parameter::String(session_status.clone()),
-                            );
-                            out_meta.insert(
-                                "sample_rate".to_string(),
-                                Parameter::Integer(audio.sample_rate as i64),
-                            );
-                            out_meta.insert(
-                                "duration".to_string(),
-                                Parameter::String(format!("{:.3}", audio.duration)),
-                            );
-
-                            node.send_output(
-                                "audio".into(),
-                                out_meta.clone(),
-                                audio_array,
-                            )?;
-
-                            // Send completion signal
-                            send_segment_complete_with_meta(
-                                &mut node,
-                                "completed",
-                                &question_id,
-                                &session_status,
-                            )?;
                         }
-                        Err(e) => {
-                            log::error!("Synthesis failed: {}", e);
-                            send_log(
-                                &mut node,
-                                "ERROR",
-                                &format!("Synthesis failed for '{}': {}", truncate_text(&text, 30), e),
-                            )?;
 
-                            // Send error completion
-                            let mut meta = BTreeMap::new();
-                            meta.insert(
-                                "question_id".to_string(),
-                                Parameter::String(question_id),
-                            );
-                            meta.insert(
-                                "session_status".to_string(),
-                                Parameter::String("error".to_string()),
-                            );
-                            meta.insert("error".to_string(), Parameter::String(e.to_string()));
-                            meta.insert(
-                                "error_stage".to_string(),
-                                Parameter::String("synthesis".to_string()),
-                            );
-
-                            let arr = StringArray::from(vec!["error"]);
-                            node.send_output("segment_complete".into(), meta, arr)?;
-                        }
+                        send_segment_complete_with_meta(
+                            &mut node,
+                            "completed",
+                            &question_id,
+                            &session_status,
+                        )?;
                     }
                 } else if input_id == "control" {
                     // Handle control commands

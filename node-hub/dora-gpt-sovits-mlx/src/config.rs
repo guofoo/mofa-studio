@@ -134,6 +134,14 @@ pub struct Config {
 
     // Synthesis options
     pub synthesis_timeout_secs: Option<u64>,
+
+    // Streaming options
+    /// Enable streaming mode (process each sentence separately)
+    pub return_fragment: bool,
+    /// Minimum characters before emitting a fragment (default: 10)
+    pub fragment_min_chars: usize,
+    /// Silence duration (seconds) between audio fragments (default: 0.3)
+    pub fragment_interval: f32,
 }
 
 impl Config {
@@ -309,6 +317,21 @@ impl Config {
             .ok()
             .and_then(|s| s.parse().ok());
 
+        // Streaming options
+        let return_fragment = std::env::var("RETURN_FRAGMENT")
+            .map(|v| v.to_lowercase() == "true" || v == "1")
+            .unwrap_or(false);
+
+        let fragment_min_chars = std::env::var("FRAGMENT_MIN_CHARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10);
+
+        let fragment_interval = std::env::var("FRAGMENT_INTERVAL")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.3);
+
         Self {
             model_dir,
             t2s_weights,
@@ -331,6 +354,9 @@ impl Config {
             noise_scale,
             use_mlx_vits,
             synthesis_timeout_secs,
+            return_fragment,
+            fragment_min_chars,
+            fragment_interval,
         }
     }
 }
