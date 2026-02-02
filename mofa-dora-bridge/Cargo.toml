@@ -42,7 +42,7 @@ arrow = { version = "54.2.1", default-features = false }
 libloading = "0.8"
 
 # ASR engines (optional, for dynamic ASR bridges)
-funasr-mlx = { path = "../../OminiX-MLX/funasr-mlx", optional = true }
+funasr-mlx = { git = "https://github.com/OminiX-ai/OminiX-MLX", branch = "main", optional = true }
 funasr-nano-mlx = { git = "https://github.com/OminiX-ai/OminiX-MLX", branch = "main", optional = true }
 
 # Chrono for timestamp in ASR log output
