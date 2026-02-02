@@ -745,9 +745,13 @@ class Text2SemanticDecoder(nn.Module):
                 if idx_list[i] is None:
                     idx_list[i] = 1500-1  ###如果没有生成到EOS，就用最大长度代替
 
+        import sys as _sys
+        for _i, (_yl, _il) in enumerate(zip(y_list, idx_list)):
+            _gen = _yl.shape[0] - prefix_len if _il is not None else 0
+            _sys.stderr.write(f"[T2S-batch] chunk[{_i}] total={_yl.shape[0]}, prompt={prefix_len}, generated={_gen}, eos_idx={_il}\n")
+        _sys.stderr.flush()
         if ref_free:
             return y_list, [0]*x.shape[0]
-        # print(idx_list)
         return y_list, idx_list
 
     def infer_panel_naive_batched(self,
@@ -881,8 +885,13 @@ class Text2SemanticDecoder(nn.Module):
             y_emb = self.ar_audio_embedding(y[:, -1:])
             xy_pos = y_emb * self.ar_audio_position.x_scale + self.ar_audio_position.alpha * self.ar_audio_position.pe[:, y_len + idx].to(dtype=y_emb.dtype,device=y_emb.device)
 
+        import sys as _sys
         if ref_free:
+            _sys.stderr.write(f"[T2S] ref_free x_phones={x_len}, prompt=0, total={y.shape[1]-1}, generated={y.shape[1]-1}, eos_step={idx}\n")
+            _sys.stderr.flush()
             return y[:, :-1], 0
+        _sys.stderr.write(f"[T2S] x_phones={x_len}, prompt={prefix_len}, total={y.shape[1]-1}, generated={y.shape[1]-1 - prefix_len}, eos_step={idx}\n")
+        _sys.stderr.flush()
         return y[:, :-1], idx - 1
 
 

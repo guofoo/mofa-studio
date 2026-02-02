@@ -1,0 +1,64 @@
+# MoFA ASR Dataflow - Paraformer (Chinese)
+#
+# Pipeline: Mic → ASR (FunASR Paraformer MLX) → Chat Display
+# Supports: Chinese only, ~60x real-time
+#
+# Environment variables:
+#   MIN_AUDIO_DURATION: minimum audio duration in seconds (default: 0.5)
+#   MAX_AUDIO_DURATION: maximum audio duration in seconds (default: 60.0)
+#   ASR_MLX_WARMUP: 1|0 - pre-initialize model (default: true)
+
+nodes:
+  # Mic Input - captures audio with AEC (echo cancellation)
+  - id: mofa-mic-input
+    path: dynamic
+    outputs:
+      - audio_segment
+      - speech_started
+      - speech_ended
+      - is_speaking
+      - question_ended
+      - status
+      - log
+
+  # ASR - FunASR Paraformer MLX (Chinese, fast)
+  - id: asr
+    build: cargo build --release --manifest-path ../../../node-hub/dora-funasr-mlx/Cargo.toml
+    path: ../../../node-hub/dora-funasr-mlx/target/release/dora-funasr-mlx
+    inputs:
+      audio: mofa-mic-input/audio_segment
+    outputs:
+      - transcription
+      - language_detected
+      - processing_time
+      - log
+    env:
+      MIN_AUDIO_DURATION: ${MIN_AUDIO_DURATION:-0.5}
+      MAX_AUDIO_DURATION: ${MAX_AUDIO_DURATION:-60.0}
+      ASR_MLX_WARMUP: ${ASR_MLX_WARMUP:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+  # Chat Display - receives ASR transcription for UI chat window
+  - id: mofa-prompt-input
+    path: dynamic
+    inputs:
+      human_text:
+        source: asr/transcription
+        queue_size: 1000
+    outputs:
+      - control
+
+  # System Log - aggregates logs from all nodes
+  - id: mofa-system-log
+    path: dynamic
+    inputs:
+      asr_log:
+        source: asr/log
+        queue_size: 1000
+      human_text:
+        source: asr/transcription
+        queue_size: 1000
+      mic_input_log:
+        source: mofa-mic-input/log
+        queue_size: 1000
+      mic_input_status: mofa-mic-input/status

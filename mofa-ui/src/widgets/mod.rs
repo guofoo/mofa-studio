@@ -96,24 +96,26 @@ use makepad_widgets::Cx;
 /// When `link::theme::*` is imported, the parser encounters "Unexpected token #" errors.
 /// Apps should define inline widget versions in their own live_design blocks.
 pub fn live_design(cx: &mut Cx) {
-    // Phase 2 - Audio widgets (disabled - parsing issues with link::theme::*)
-    // The Makepad live_design parser encounters "Unexpected token #" errors
-    // when shared widget modules import link::theme::*. Apps must define
-    // inline widget versions in their own live_design blocks.
+    // NOTE: Phase 2-4 widget live_design registrations are disabled due to Makepad
+    // parser issues. When `link::theme::*` is imported, the parser encounters
+    // "Unexpected token #" errors. Apps define inline widget DSL in their own
+    // live_design blocks while importing Rust types from mofa-ui.
+    //
+    // Phase 2 - Audio widgets (inline in app design.rs)
     // led_meter::live_design(cx);
     // mic_button::live_design(cx);
     // aec_button::live_design(cx);
-
-    // Phase 3 - Chat widgets (disabled - parsing issues)
+    //
+    // Phase 3 - Chat widgets (inline in app design.rs)
     // chat_panel::live_design(cx);
     // chat_input::live_design(cx);
     // log_panel::live_design(cx);
-
-    // Phase 4 - Config widgets (disabled - parsing issues)
+    //
+    // Phase 4 - Config widgets (inline in app design.rs)
     // role_editor::live_design(cx);
     // dataflow_picker::live_design(cx);
     // provider_selector::live_design(cx);
 
-    // Phase 5 - Hero widgets
+    // Phase 5 - Hero widgets (works because it doesn't import link::theme::*)
     mofa_hero::live_design(cx);
 }

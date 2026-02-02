@@ -1,0 +1,45 @@
+# Simple Unit Test Dataflow for dora-funasr-nano-mlx (SenseVoice + Qwen)
+#
+# This is a minimal dataflow for testing the ASR node in isolation.
+# Uses a Python node to load and send audio from a WAV file.
+#
+# Usage:
+#   cd node-hub/dora-funasr-nano-mlx/dataflow
+#   dora up
+#   dora build test-funasr-nano-mlx.yml
+#   dora start test-funasr-nano-mlx.yml
+#
+# Requirements:
+#   - SenseVoice model at ~/.mofa/models/Fun-ASR-Nano-2512
+#   - Test audio file (any sample rate WAV) - set TEST_AUDIO_FILE env var
+
+nodes:
+  # Audio file source - reads WAV file and sends as audio chunks
+  - id: audio-source
+    build: pip install scipy numpy pyarrow
+    path: audio_source.py
+    inputs:
+      tick: dora/timer/millis/100
+    outputs:
+      - audio
+    env:
+      TEST_AUDIO_FILE: ${TEST_AUDIO_FILE:-../test_audio.wav}
+
+  # MLX ASR Node (SenseVoice + Qwen)
+  - id: funasr-nano-mlx
+    build: cargo build --release --manifest-path ../Cargo.toml
+    path: ../target/release/dora-funasr-nano-mlx
+    inputs:
+      audio: audio-source/audio
+    outputs:
+      - transcription
+      - language_detected
+      - processing_time
+      - log
+    env:
+      SENSEVOICE_MODEL_DIR: ${SENSEVOICE_MODEL_DIR:-$HOME/.mofa/models/Fun-ASR-Nano-2512}
+      ASR_NANO_LANGUAGE: ${ASR_NANO_LANGUAGE:-auto}
+      MIN_AUDIO_DURATION: ${MIN_AUDIO_DURATION:-0.1}
+      MAX_AUDIO_DURATION: ${MAX_AUDIO_DURATION:-60.0}
+      ASR_MLX_WARMUP: ${ASR_MLX_WARMUP:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}

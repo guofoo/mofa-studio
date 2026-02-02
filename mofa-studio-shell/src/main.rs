@@ -27,6 +27,17 @@ fn main() {
     )
     .init();
 
+    // Install panic hook to capture panic message before extern "C" abort
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("=== PANIC CAPTURED ===");
+        eprintln!("{}", info);
+        if let Some(loc) = info.location() {
+            eprintln!("Location: {}:{}:{}", loc.file(), loc.line(), loc.column());
+        }
+        eprintln!("Backtrace:\n{}", std::backtrace::Backtrace::force_capture());
+        eprintln!("=== END PANIC ===");
+    }));
+
     log::info!("Starting MoFA Studio");
     log::debug!("CLI args: {:?}", args);
 

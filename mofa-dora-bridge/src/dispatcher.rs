@@ -100,7 +100,7 @@ impl DynamicNodeDispatcher {
                     &node_spec.id,
                     shared_state.clone(),
                 )),
-                MofaNodeType::PromptInput => Box::new(PromptInputBridge::with_shared_state(
+                MofaNodeType::PromptInput | MofaNodeType::ChatOutput => Box::new(PromptInputBridge::with_shared_state(
                     &node_spec.id,
                     shared_state.clone(),
                 )),
@@ -115,6 +115,13 @@ impl DynamicNodeDispatcher {
                     // ParticipantPanel functionality consolidated into AudioPlayerBridge
                     // No separate bridge needed - AudioPlayerBridge now handles LED visualization
                     info!("Skipping ParticipantPanel bridge - consolidated into AudioPlayerBridge");
+                    continue;
+                }
+                MofaNodeType::AsrParaformer | MofaNodeType::AsrSenseVoice | MofaNodeType::AsrStepAudio2 => {
+                    // ASR engines run as separate OS processes (not dynamic bridges)
+                    // to avoid MLX Metal GPU crashes from concurrent thread access.
+                    // Dora manages their lifecycle via build+path in the YAML.
+                    debug!("Skipping bridge for process-based ASR node: {}", node_spec.id);
                     continue;
                 }
             };
@@ -145,19 +152,21 @@ impl DynamicNodeDispatcher {
 
         let mut errors = Vec::new();
 
-        for (node_id, bridge) in &mut self.bridges {
-            match bridge.connect() {
-                Ok(()) => {
-                    info!("Connected bridge: {}", node_id);
-                    // Update binding state
-                    if let Some(binding) = self.bindings.iter_mut().find(|b| &b.node_id == node_id)
-                    {
-                        binding.state = BridgeState::Connected;
+        let all_ids: Vec<String> = self.bridges.keys().cloned().collect();
+
+        for node_id in &all_ids {
+            if let Some(bridge) = self.bridges.get_mut(node_id.as_str()) {
+                match bridge.connect() {
+                    Ok(()) => {
+                        info!("Connected bridge: {}", node_id);
+                        if let Some(binding) = self.bindings.iter_mut().find(|b| &b.node_id == node_id) {
+                            binding.state = BridgeState::Connected;
+                        }
                     }
-                }
-                Err(e) => {
-                    error!("Failed to connect bridge {}: {}", node_id, e);
-                    errors.push(format!("{}: {}", node_id, e));
+                    Err(e) => {
+                        error!("Failed to connect bridge {}: {}", node_id, e);
+                        errors.push(format!("{}: {}", node_id, e));
+                    }
                 }
             }
         }
@@ -216,24 +225,60 @@ impl DynamicNodeDispatcher {
         self.bindings.iter().find(|b| b.node_id == node_id)
     }
 
+    /// Connect a single bridge by node ID
+    pub fn connect_bridge(&mut self, node_id: &str) -> BridgeResult<()> {
+        if let Some(bridge) = self.bridges.get_mut(node_id) {
+            bridge.connect()?;
+            if let Some(binding) = self.bindings.iter_mut().find(|b| b.node_id == node_id) {
+                binding.state = BridgeState::Connected;
+            }
+            info!("Connected bridge: {}", node_id);
+            Ok(())
+        } else {
+            Err(BridgeError::Unknown(format!("Bridge not found: {}", node_id)))
+        }
+    }
+
+    /// Disconnect a single bridge by node ID
+    pub fn disconnect_bridge(&mut self, node_id: &str) -> BridgeResult<()> {
+        if let Some(bridge) = self.bridges.get_mut(node_id) {
+            bridge.disconnect()?;
+            if let Some(binding) = self.bindings.iter_mut().find(|b| b.node_id == node_id) {
+                binding.state = BridgeState::Disconnected;
+            }
+            info!("Disconnected bridge: {}", node_id);
+            Ok(())
+        } else {
+            Err(BridgeError::Unknown(format!("Bridge not found: {}", node_id)))
+        }
+    }
+
     /// Start the dataflow and connect all bridges
     pub fn start(&mut self) -> BridgeResult<String> {
+        eprintln!("[Dispatcher] Starting dataflow...");
+
         // Start the dataflow
         let dataflow_id = {
             let mut controller = self.controller.write();
             controller.start()?
         };
 
+        eprintln!("[Dispatcher] Dataflow started, ID: {}", dataflow_id);
+
         // Wait for dataflow to initialize and register dynamic nodes
         // This is necessary because `dora start --detach` returns immediately
-        info!("Waiting for dataflow to initialize...");
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        // With complex dataflows that have build commands, this can take 10-30+ seconds
+        eprintln!("[Dispatcher] Waiting 10 seconds for dataflow to initialize...");
+        info!("Waiting for dataflow to initialize (builds may take time)...");
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        eprintln!("[Dispatcher] Wait complete, creating bridges...");
 
         // Create bridges if not already created
         if self.bridges.is_empty() {
             self.create_bridges()?;
         }
 
+        eprintln!("[Dispatcher] Connecting {} bridges to dora...", self.bridges.len());
         info!("Connecting {} bridges to dora...", self.bridges.len());
 
         const MAX_CONNECT_ATTEMPTS: usize = 15;

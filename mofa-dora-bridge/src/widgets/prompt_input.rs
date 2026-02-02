@@ -202,6 +202,15 @@ impl PromptInputBridge {
                         // Push chat message to SharedDoraState for UI consumption
                         // ChatState.push() handles streaming consolidation internally
                         if let Some(ss) = shared_state {
+                            // Route to per-engine chat if input matches
+                            if input_id.contains("paraformer") {
+                                ss.chat_paraformer.push(msg.clone());
+                            } else if input_id.contains("sensevoice") {
+                                ss.chat_sensevoice.push(msg.clone());
+                            } else if input_id.contains("stepaudio2") {
+                                ss.chat_stepaudio2.push(msg.clone());
+                            }
+                            // Always push to combined chat
                             ss.chat.push(msg);
                         }
                     }

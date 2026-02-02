@@ -227,4 +227,14 @@ VOICE_CONFIGS = {
         "prompt_lang": "en",
         "speed_factor": 1.1,
     },
+    "Marc": {
+        "repository": None,  # Local finetuned model, not from HuggingFace
+        "gpt_weights": "gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt",
+        "sovits_weights": "SoVITS_weights/finetuned_fewshot.pth",
+        "reference_audio": "ref_audios/fewshot_ref.wav",
+        "prompt_text": "一个是clawdbot可以替代人做事情的agent",
+        "text_lang": "zh",
+        "prompt_lang": "zh",
+        "speed_factor": 1.0,
+    },
 }

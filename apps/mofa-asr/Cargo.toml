@@ -1,0 +1,20 @@
+[package]
+name = "mofa-asr"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+makepad-widgets.workspace = true
+mofa-widgets = { path = "../../mofa-widgets" }
+mofa-dora-bridge = { path = "../../mofa-dora-bridge" }
+mofa-ui = { path = "../../mofa-ui" }
+mofa-settings = { path = "../mofa-settings" }
+parking_lot.workspace = true
+log.workspace = true
+crossbeam-channel.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+moly-kit = { git = "https://github.com/moxin-org/moly", branch = "main" }

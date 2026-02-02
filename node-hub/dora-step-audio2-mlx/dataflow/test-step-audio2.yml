@@ -1,0 +1,37 @@
+# Simple Unit Test Dataflow for dora-step-audio2-mlx (StepAudio2)
+#
+# Usage:
+#   cd node-hub/dora-step-audio2-mlx/dataflow
+#   dora up
+#   dora build test-step-audio2.yml
+#   dora start test-step-audio2.yml
+
+nodes:
+  # Audio file source - reads WAV file and sends as audio chunks
+  - id: audio-source
+    build: pip install scipy numpy pyarrow
+    path: audio_source.py
+    inputs:
+      tick: dora/timer/millis/100
+    outputs:
+      - audio
+    env:
+      TEST_AUDIO_FILE: ${TEST_AUDIO_FILE:-test.wav}
+
+  # MLX ASR Node (StepAudio2)
+  - id: asr-step-audio2
+    build: cargo build --release --manifest-path ../Cargo.toml
+    path: ../target/release/dora-step-audio2-mlx
+    inputs:
+      audio: audio-source/audio
+    outputs:
+      - transcription
+      - language_detected
+      - processing_time
+      - log
+    env:
+      STEPAUDIO2_MODEL_DIR: ${STEPAUDIO2_MODEL_DIR:-$HOME/.mofa/models/Step-Audio-2-mini}
+      MIN_AUDIO_DURATION: "0.5"
+      MAX_AUDIO_DURATION: "30.0"
+      ASR_MLX_WARMUP: "true"
+      LOG_LEVEL: "DEBUG"

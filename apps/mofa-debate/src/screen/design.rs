@@ -1069,49 +1069,68 @@ live_design! {
                             width: 70, height: 24
                             popup_menu_position: BelowInput
                             draw_bg: {
-                                color: (HOVER_BG)
-                                border_color: (SLATE_200)
+                                instance dark_mode: 0.0
                                 border_radius: 2.0
                                 fn pixel(self) -> vec4 {
                                     let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                    // Background
                                     sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 2.0);
-                                    sdf.fill((HOVER_BG));
+                                    let bg = mix((HOVER_BG), (SLATE_700), self.dark_mode);
+                                    sdf.fill(bg);
                                     // Down arrow on right side
                                     let ax = self.rect_size.x - 12.0;
                                     let ay = self.rect_size.y * 0.5 - 2.0;
                                     sdf.move_to(ax - 3.0, ay);
                                     sdf.line_to(ax, ay + 4.0);
                                     sdf.line_to(ax + 3.0, ay);
-                                    sdf.stroke((TEXT_PRIMARY), 1.5);
+                                    let arrow_color = mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                    sdf.stroke(arrow_color, 1.5);
                                     return sdf.result;
                                 }
                             }
                             draw_text: {
+                                instance dark_mode: 0.0
                                 text_style: <FONT_MEDIUM>{ font_size: 10.0 }
                                 fn get_color(self) -> vec4 {
-                                    return (TEXT_PRIMARY);
+                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
                                 }
                             }
                             popup_menu: {
                                 draw_bg: {
-                                    color: (WHITE)
-                                    border_color: (BORDER)
+                                    instance dark_mode: 0.0
                                     border_size: 1.0
                                     border_radius: 2.0
+                                    fn pixel(self) -> vec4 {
+                                        let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                        sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 2.0);
+                                        let bg = mix((WHITE), (SLATE_800), self.dark_mode);
+                                        let border = mix((BORDER), (SLATE_600), self.dark_mode);
+                                        sdf.fill(bg);
+                                        sdf.stroke(border, 1.0);
+                                        return sdf.result;
+                                    }
                                 }
                                 menu_item: {
                                     draw_bg: {
-                                        color: (WHITE)
-                                        color_hover: (GRAY_100)
+                                        instance dark_mode: 0.0
+                                        fn pixel(self) -> vec4 {
+                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                            sdf.rect(0., 0., self.rect_size.x, self.rect_size.y);
+                                            let base = mix((WHITE), (SLATE_800), self.dark_mode);
+                                            let hover_color = mix((GRAY_100), (SLATE_700), self.dark_mode);
+                                            sdf.fill(mix(base, hover_color, self.hover));
+                                            return sdf.result;
+                                        }
                                     }
                                     draw_text: {
+                                        instance dark_mode: 0.0
                                         fn get_color(self) -> vec4 {
-                                            return mix(
-                                                mix((GRAY_700), (TEXT_PRIMARY), self.active),
-                                                (TEXT_PRIMARY),
-                                                self.hover
-                                            );
+                                            let light_base = mix((GRAY_700), (TEXT_PRIMARY), self.active);
+                                            let dark_base = mix((SLATE_300), (TEXT_PRIMARY_DARK), self.active);
+                                            let base = mix(light_base, dark_base, self.dark_mode);
+                                            let light_hover = (TEXT_PRIMARY);
+                                            let dark_hover = (TEXT_PRIMARY_DARK);
+                                            let hover_color = mix(light_hover, dark_hover, self.dark_mode);
+                                            return mix(base, hover_color, self.hover);
                                         }
                                     }
                                 }
@@ -1125,49 +1144,68 @@ live_design! {
                             width: 85, height: 24
                             popup_menu_position: BelowInput
                             draw_bg: {
-                                color: (HOVER_BG)
-                                border_color: (SLATE_200)
+                                instance dark_mode: 0.0
                                 border_radius: 2.0
                                 fn pixel(self) -> vec4 {
                                     let sdf = Sdf2d::viewport(self.pos * self.rect_size);
-                                    // Background
                                     sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 2.0);
-                                    sdf.fill((HOVER_BG));
+                                    let bg = mix((HOVER_BG), (SLATE_700), self.dark_mode);
+                                    sdf.fill(bg);
                                     // Down arrow on right side
                                     let ax = self.rect_size.x - 12.0;
                                     let ay = self.rect_size.y * 0.5 - 2.0;
                                     sdf.move_to(ax - 3.0, ay);
                                     sdf.line_to(ax, ay + 4.0);
                                     sdf.line_to(ax + 3.0, ay);
-                                    sdf.stroke((TEXT_PRIMARY), 1.5);
+                                    let arrow_color = mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
+                                    sdf.stroke(arrow_color, 1.5);
                                     return sdf.result;
                                 }
                             }
                             draw_text: {
+                                instance dark_mode: 0.0
                                 text_style: <FONT_MEDIUM>{ font_size: 10.0 }
                                 fn get_color(self) -> vec4 {
-                                    return (TEXT_PRIMARY);
+                                    return mix((TEXT_PRIMARY), (TEXT_PRIMARY_DARK), self.dark_mode);
                                 }
                             }
                             popup_menu: {
                                 draw_bg: {
-                                    color: (WHITE)
-                                    border_color: (BORDER)
+                                    instance dark_mode: 0.0
                                     border_size: 1.0
                                     border_radius: 2.0
+                                    fn pixel(self) -> vec4 {
+                                        let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                        sdf.box(0., 0., self.rect_size.x, self.rect_size.y, 2.0);
+                                        let bg = mix((WHITE), (SLATE_800), self.dark_mode);
+                                        let border = mix((BORDER), (SLATE_600), self.dark_mode);
+                                        sdf.fill(bg);
+                                        sdf.stroke(border, 1.0);
+                                        return sdf.result;
+                                    }
                                 }
                                 menu_item: {
                                     draw_bg: {
-                                        color: (WHITE)
-                                        color_hover: (GRAY_100)
+                                        instance dark_mode: 0.0
+                                        fn pixel(self) -> vec4 {
+                                            let sdf = Sdf2d::viewport(self.pos * self.rect_size);
+                                            sdf.rect(0., 0., self.rect_size.x, self.rect_size.y);
+                                            let base = mix((WHITE), (SLATE_800), self.dark_mode);
+                                            let hover_color = mix((GRAY_100), (SLATE_700), self.dark_mode);
+                                            sdf.fill(mix(base, hover_color, self.hover));
+                                            return sdf.result;
+                                        }
                                     }
                                     draw_text: {
+                                        instance dark_mode: 0.0
                                         fn get_color(self) -> vec4 {
-                                            return mix(
-                                                mix((GRAY_700), (TEXT_PRIMARY), self.active),
-                                                (TEXT_PRIMARY),
-                                                self.hover
-                                            );
+                                            let light_base = mix((GRAY_700), (TEXT_PRIMARY), self.active);
+                                            let dark_base = mix((SLATE_300), (TEXT_PRIMARY_DARK), self.active);
+                                            let base = mix(light_base, dark_base, self.dark_mode);
+                                            let light_hover = (TEXT_PRIMARY);
+                                            let dark_hover = (TEXT_PRIMARY_DARK);
+                                            let hover_color = mix(light_hover, dark_hover, self.dark_mode);
+                                            return mix(base, hover_color, self.hover);
                                         }
                                     }
                                 }
@@ -1182,16 +1220,18 @@ live_design! {
                             align: {x: 0.5, y: 0.5}
                             show_bg: true
                             draw_bg: {
+                                instance dark_mode: 0.0
                                 fn pixel(self) -> vec4 {
                                     let sdf = Sdf2d::viewport(self.pos * self.rect_size);
                                     let c = self.rect_size * 0.5;
+                                    let icon_color = mix((GRAY_500), (SLATE_400), self.dark_mode);
                                     // Magnifying glass circle
                                     sdf.circle(c.x - 2.0, c.y - 2.0, 5.0);
-                                    sdf.stroke((GRAY_500), 1.5);
+                                    sdf.stroke(icon_color, 1.5);
                                     // Handle
                                     sdf.move_to(c.x + 1.5, c.y + 1.5);
                                     sdf.line_to(c.x + 6.0, c.y + 6.0);
-                                    sdf.stroke((GRAY_500), 1.5);
+                                    sdf.stroke(icon_color, 1.5);
                                     return sdf.result;
                                 }
                             }

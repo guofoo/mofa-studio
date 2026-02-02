@@ -1,0 +1,32 @@
+[package]
+name = "dora-funasr-nano-mlx"
+version = "0.1.0"
+edition = "2021"
+authors = ["MoFA Contributors"]
+description = "MLX-based ASR node for Dora using FunASR-Nano SenseVoice+Qwen (Apple Silicon optimized, multi-language)"
+license = "Apache-2.0"
+
+# Keep this package out of the parent workspace (has external MLX dependencies)
+[workspace]
+
+[dependencies]
+# Dora framework
+dora-node-api = { version = "0.4.1", features = ["tracing"] }
+eyre = "0.6"
+
+# MLX ASR engine (SenseVoice + Qwen) - GitHub dependency
+funasr-nano-mlx = { git = "https://github.com/OminiX-ai/OminiX-MLX", branch = "main" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+chrono = "0.4"
+log = "0.4"
+env_logger = "0.11"
+futures = "0.3"
+
+[[bin]]
+name = "dora-funasr-nano-mlx"
+path = "src/main.rs"

@@ -35,7 +35,8 @@ pub fn get_cli_args() -> &'static Args {
 // App plugin system imports
 use mofa_widgets::{MofaApp, AppRegistry, TimerControl, PageRouter, PageId, tab_clicked};
 use mofa_fm::{MoFaFMApp, MoFaFMScreenWidgetRefExt};
-use mofa_debate::MoFaDebateApp;
+use mofa_debate::{MoFaDebateApp, MoFaDebateScreenWidgetRefExt};
+use mofa_asr::{MoFaASRApp, MoFaASRScreenWidgetRefExt};
 use mofa_settings::MoFaSettingsApp;
 use mofa_settings::data::Preferences;
 use mofa_settings::screen::SettingsScreenWidgetRefExt;
@@ -390,6 +391,7 @@ impl LiveHook for App {
         // Initialize the app registry with all installed apps
         self.app_registry.register(MoFaFMApp::info());
         self.app_registry.register(MoFaDebateApp::info());
+        self.app_registry.register(MoFaASRApp::info());
         self.app_registry.register(MoFaSettingsApp::info());
 
         // Initialize page router (defaults to MoFA FM)
@@ -460,6 +462,7 @@ impl LiveRegister for App {
         // (Makepad constraint), but registration uses the standardized trait interface
         <MoFaFMApp as MofaApp>::live_design(cx);
         <MoFaDebateApp as MofaApp>::live_design(cx);
+        <MoFaASRApp as MofaApp>::live_design(cx);
         <MoFaSettingsApp as MofaApp>::live_design(cx);
 
         // Shell widgets (order matters - tabs before dashboard, apps before dashboard)
@@ -807,6 +810,8 @@ impl App {
             .apply_over(cx, live!{ visible: (current == Some(PageId::MofaFM)) });
         self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.debate_page))
             .apply_over(cx, live!{ visible: (current == Some(PageId::Debate)) });
+        self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.asr_page))
+            .apply_over(cx, live!{ visible: (current == Some(PageId::Asr)) });
         self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.app_page))
             .apply_over(cx, live!{ visible: (current == Some(PageId::App)) });
         self.ui.view(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.settings_page))
@@ -818,6 +823,7 @@ impl App {
         let (title, description) = match page {
             PageId::MofaFM => ("MoFA FM", "AI-powered audio streaming and voice interface"),
             PageId::Debate => ("MoFA Debate", "Multi-agent debate and discussion platform"),
+            PageId::Asr => ("MoFA ASR", "Speech recognition with MLX-based ASR engines"),
             PageId::Settings => ("Settings", "Configure providers and preferences"),
             PageId::App => ("Demo App", "Select an app from the sidebar"),
         };
@@ -996,6 +1002,14 @@ impl App {
             draw_bg: { dark_mode: (dm) }
         });
 
+        // Apply to app title and description
+        self.ui.label(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.hero_title_panel.title_container.app_title)).apply_over(cx, live!{
+            draw_text: { dark_mode: (dm) }
+        });
+        self.ui.label(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.hero_title_panel.title_container.app_description)).apply_over(cx, live!{
+            draw_text: { dark_mode: (dm) }
+        });
+
         // Apply to pinned sidebar background
         self.ui.view(ids!(pinned_sidebar)).apply_over(cx, live!{
             draw_bg: { dark_mode: (dm) }
@@ -1106,6 +1120,14 @@ impl App {
     fn apply_dark_mode_screens_with_value(&mut self, cx: &mut Cx, dm: f64) {
         // Apply to MoFA FM screen
         self.ui.mo_fa_fmscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.fm_page))
+            .update_dark_mode(cx, dm);
+
+        // Apply to MoFA Debate screen
+        self.ui.mo_fa_debate_screen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.debate_page))
+            .update_dark_mode(cx, dm);
+
+        // Apply to MoFA ASR screen
+        self.ui.mo_fa_asrscreen(ids!(body.dashboard_wrapper.dashboard_base.content_area.main_content.content.asr_page))
             .update_dark_mode(cx, dm);
 
         // Apply to Settings screen in main content

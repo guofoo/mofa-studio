@@ -185,6 +185,12 @@ class StreamingMoYoYoTTSWrapper:
                     "ref_audio": "ref_audios/yangmi_ref.wav",
                     "prompt_text": "让梦想，照进现实。不管在什么情况下，只要是坚定的，永远相信美好的事情，即将发生。",
                 },
+                "marc": {
+                    "t2s_weights": "gsv-v2final-pretrained/s1bert25hz-5kh-longer-epoch=12-step=369668.ckpt",
+                    "vits_weights": "SoVITS_weights/finetuned_fewshot.pth",
+                    "ref_audio": "ref_audios/fewshot_ref.wav",
+                    "prompt_text": "一个是clawdbot可以替代人做事情的agent",
+                },
             }
             
             voice_config = voice_configs.get(self.voice, voice_configs["doubao"])

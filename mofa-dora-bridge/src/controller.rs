@@ -202,14 +202,19 @@ impl DataflowController {
         }
 
         // Execute
+        eprintln!("[Controller] Executing: dora start {:?} --detach", self.dataflow_path);
         info!("Starting dataflow: {:?}", self.dataflow_path);
         let output = cmd.output().map_err(|e| {
+            eprintln!("[Controller] FAILED to execute dora: {}", e);
             BridgeError::StartFailed(format!("Failed to execute dora start: {}", e))
         })?;
+
+        eprintln!("[Controller] dora start exit status: {:?}", output.status);
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let msg = format!("Dora start failed: {}", stderr);
+            eprintln!("[Controller] {}", msg);
             error!("{}", msg);
             *self.state.write() = DataflowState::Error {
                 message: msg.clone(),
@@ -220,10 +225,14 @@ impl DataflowController {
         // Parse dataflow ID from output (check both stdout and stderr - dora outputs to stderr)
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[Controller] dora stdout: {}", stdout);
+        eprintln!("[Controller] dora stderr: {}", stderr);
+
         let dataflow_id = Self::parse_dataflow_id(&stderr)
             .or_else(|| Self::parse_dataflow_id(&stdout))
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
+        eprintln!("[Controller] Dataflow started with ID: {}", dataflow_id);
         info!("Dataflow started with ID: {}", dataflow_id);
 
         // Update state

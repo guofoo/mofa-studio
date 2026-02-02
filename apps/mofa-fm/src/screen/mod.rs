@@ -548,20 +548,18 @@ impl Widget for MoFaFMScreen {
             _ => {}
         }
 
-        // Handle actions
-        // Handle MofaHero start/stop actions (from captured actions at line 203)
-        for action in &actions {
-            match action.as_widget_action().cast() {
-                MofaHeroAction::StartClicked => {
-                    ::log::info!("Screen received StartClicked action");
-                    self.handle_mofa_start(cx);
-                }
-                MofaHeroAction::StopClicked => {
-                    ::log::info!("Screen received StopClicked action");
-                    self.handle_mofa_stop(cx);
-                }
-                MofaHeroAction::None => {}
+        // Handle MofaHero start/stop — scoped to this screen's hero widget only
+        let hero_uid = self.view.mofa_hero(ids!(left_column.mofa_hero)).widget_uid();
+        match actions.find_widget_action_cast::<MofaHeroAction>(hero_uid) {
+            MofaHeroAction::StartClicked => {
+                ::log::info!("Screen received StartClicked action");
+                self.handle_mofa_start(cx);
             }
+            MofaHeroAction::StopClicked => {
+                ::log::info!("Screen received StopClicked action");
+                self.handle_mofa_stop(cx);
+            }
+            MofaHeroAction::None => {}
         }
 
         // Handle toggle log panel button
@@ -1696,6 +1694,25 @@ impl StateChangeListener for MoFaFMScreenRef {
                 draw_bg: { dark_mode: (dark_mode) }
             });
             inner.view.label(ids!(log_section.log_content_column.log_header.log_title_row.log_title_label)).apply_over(cx, live!{
+                draw_text: { dark_mode: (dark_mode) }
+            });
+
+            // Apply dark mode to log filter dropdowns
+            inner.view.drop_down(ids!(log_section.log_content_column.log_header.log_filter_row.level_filter)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+                draw_text: { dark_mode: (dark_mode) }
+            });
+            inner.view.drop_down(ids!(log_section.log_content_column.log_header.log_filter_row.node_filter)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+                draw_text: { dark_mode: (dark_mode) }
+            });
+
+            // Apply dark mode to search icon and search input
+            inner.view.view(ids!(log_section.log_content_column.log_header.log_filter_row.search_icon)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
+            });
+            inner.view.text_input(ids!(log_section.log_content_column.log_header.log_filter_row.log_search)).apply_over(cx, live!{
+                draw_bg: { dark_mode: (dark_mode) }
                 draw_text: { dark_mode: (dark_mode) }
             });
 

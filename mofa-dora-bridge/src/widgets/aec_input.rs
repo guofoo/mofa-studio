@@ -20,6 +20,7 @@ use dora_node_api::{
 use libloading::{Library, Symbol};
 use parking_lot::RwLock;
 use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -35,6 +36,117 @@ pub enum AecControlCommand {
     SetAecEnabled(bool),
 }
 
+/// Adaptive endpoint detector that adjusts silence threshold based on speaker pace.
+///
+/// Uses percentile-based threshold: sorts recent gaps and picks P90 + margin as
+/// the sentence boundary threshold. This naturally separates short intra-sentence
+/// pauses (breathing, word gaps) from longer inter-sentence silences.
+///
+/// Example: gaps = [120, 150, 180, 200, 130, 160, 140, 1500, 170, 190]
+///   sorted = [120, 130, 140, 150, 160, 170, 180, 190, 200, 1500]
+///   P90 = 200ms (index 9 of 10), margin = 1.5 → threshold = 300ms → clamped to 500ms
+///   The 1500ms gap (actual sentence boundary) exceeds threshold → detected correctly.
+struct AdaptiveEndpointer {
+    enabled: bool,
+    gap_history: VecDeque<f64>,
+    window_size: usize,
+    /// Percentile to use (0.0-1.0), default 0.85 — picks the gap value below which
+    /// this fraction of gaps fall. Gaps above this are likely sentence boundaries.
+    percentile: f64,
+    /// Margin multiplier applied on top of the percentile value, default 1.5
+    margin: f64,
+    min_threshold_ms: f64,
+    max_threshold_ms: f64,
+    last_speech_end: Option<Instant>,
+    last_logged_threshold: f64,
+}
+
+impl AdaptiveEndpointer {
+    fn new() -> Self {
+        let enabled = std::env::var("ADAPTIVE_ENDPOINT")
+            .map(|v| v != "false" && v != "0")
+            .unwrap_or(true);
+        let window_size = std::env::var("ADAPTIVE_WINDOW_SIZE")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(20);
+        let percentile = std::env::var("ADAPTIVE_PERCENTILE")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(0.85);
+        let margin = std::env::var("ADAPTIVE_MARGIN")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(1.5);
+        let min_threshold_ms = std::env::var("ADAPTIVE_MIN_MS")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(100.0);
+        let max_threshold_ms = std::env::var("ADAPTIVE_MAX_MS")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(3000.0);
+
+        if enabled {
+            info!(
+                "Adaptive endpointer enabled: window={}, P{:.0}×{}, range=[{}ms, {}ms]",
+                window_size, percentile * 100.0, margin, min_threshold_ms, max_threshold_ms
+            );
+        }
+
+        Self {
+            enabled,
+            gap_history: VecDeque::with_capacity(window_size + 1),
+            window_size,
+            percentile,
+            margin,
+            min_threshold_ms,
+            max_threshold_ms,
+            last_speech_end: None,
+            last_logged_threshold: 0.0,
+        }
+    }
+
+    /// Called when speech starts — records the gap since last speech end
+    fn record_speech_start(&mut self) {
+        if !self.enabled { return; }
+        if let Some(last_end) = self.last_speech_end {
+            let gap_ms = last_end.elapsed().as_secs_f64() * 1000.0;
+            self.gap_history.push_back(gap_ms);
+            if self.gap_history.len() > self.window_size {
+                self.gap_history.pop_front();
+            }
+        }
+    }
+
+    /// Called when speech ends — records the timestamp
+    fn record_speech_end(&mut self) {
+        self.last_speech_end = Some(Instant::now());
+    }
+
+    /// Returns adaptive threshold using percentile of recent gaps, or fallback if insufficient data
+    fn current_threshold_ms(&mut self, fallback: f64) -> f64 {
+        if !self.enabled || self.gap_history.len() < 5 {
+            return fallback;
+        }
+
+        // Sort gaps to compute percentile
+        let mut sorted: Vec<f64> = self.gap_history.iter().copied().collect();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        // P-th percentile: value below which P% of gaps fall
+        let idx = ((sorted.len() as f64 - 1.0) * self.percentile).round() as usize;
+        let p_value = sorted[idx.min(sorted.len() - 1)];
+
+        // Threshold = percentile value × margin
+        // Gaps representing normal intra-sentence pauses cluster below p_value.
+        // A gap exceeding p_value × margin is an outlier = sentence boundary.
+        let threshold = (p_value * self.margin).clamp(self.min_threshold_ms, self.max_threshold_ms);
+
+        // Log when threshold changes significantly (>150ms shift)
+        if (threshold - self.last_logged_threshold).abs() > 150.0 {
+            let median_idx = sorted.len() / 2;
+            info!(
+                "Adaptive endpoint threshold: {:.0}ms (P{:.0}={:.0}ms, median={:.0}ms, samples={})",
+                threshold, self.percentile * 100.0, p_value, sorted[median_idx], sorted.len()
+            );
+            self.last_logged_threshold = threshold;
+        }
+
+        threshold
+    }
+}
+
 /// VAD segmentation state
 struct VadState {
     is_speaking: bool,
@@ -47,8 +159,10 @@ struct VadState {
     max_segment_size: usize,
     question_end_silence_ms: f64,
     last_speech_end_time: Option<Instant>,
+    max_exceeded: bool,
     question_end_sent: bool,
     current_question_id: u32,
+    endpointer: AdaptiveEndpointer,
 }
 
 impl Default for VadState {
@@ -62,7 +176,7 @@ impl Default for VadState {
         let question_end_silence_ms = std::env::var("QUESTION_END_SILENCE_MS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(1000.0); // Default 1000ms
+            .unwrap_or(3000.0); // Default 3000ms (matching mac_aec_simple_segmentation.py)
 
         Self {
             is_speaking: false,
@@ -73,10 +187,12 @@ impl Default for VadState {
             speech_end_threshold,           // From env or default 10 frames (~100ms)
             min_segment_size: 4800,         // 0.3s at 16kHz
             max_segment_size: 160000,       // 10s at 16kHz
-            question_end_silence_ms,        // From env or default 1000ms
+            max_exceeded: false,
+            question_end_silence_ms,        // From env or default 3000ms
             last_speech_end_time: None,
             question_end_sent: false,
             current_question_id: rand::random::<u32>() % 900000 + 100000,
+            endpointer: AdaptiveEndpointer::new(),
         }
     }
 }
@@ -716,13 +832,22 @@ impl AecInputBridge {
                     && !vad_state.question_end_sent
                 {
                     let elapsed = vad_state.last_speech_end_time.unwrap().elapsed();
-                    if elapsed.as_millis() as f64 >= vad_state.question_end_silence_ms {
+                    let threshold = vad_state.endpointer.current_threshold_ms(vad_state.question_end_silence_ms);
+                    if elapsed.as_millis() as f64 >= threshold {
                         question_ended = true;
                         vad_state.question_end_sent = true;
                         info!(
-                            "Question ended (silence: {}ms, question_id={})",
-                            elapsed.as_millis(),
-                            vad_state.current_question_id
+                            "Sentence complete: silence={:.0}ms >= threshold={:.0}ms (question_id={})",
+                            elapsed.as_millis() as f64, threshold, vad_state.current_question_id
+                        );
+                        let _ = Self::send_log(
+                            &mut node,
+                            &node_id,
+                            "INFO",
+                            &format!(
+                                "🔚 Sentence complete: silence={:.0}ms, threshold={:.0}ms, question_id={}",
+                                elapsed.as_millis() as f64, threshold, vad_state.current_question_id
+                            ),
                         );
                     }
                 }
@@ -783,6 +908,7 @@ impl AecInputBridge {
                             vad_state.is_speaking = true;
                             speech_started = true;
                             vad_state.question_end_sent = false;
+                            vad_state.endpointer.record_speech_start();
 
                             // Start segment buffer
                             vad_state.audio_segment_buffer.clear();
@@ -800,12 +926,9 @@ impl AecInputBridge {
                         vad_state.audio_segment_buffer.extend(&all_audio);
                         vad_state.silence_count = 0;
 
-                        // Check max size
+                        // Flag when max size exceeded — actual cut deferred to next silence
                         if vad_state.audio_segment_buffer.len() >= vad_state.max_segment_size {
-                            audio_segment = Some(vad_state.audio_segment_buffer.clone());
-                            vad_state.audio_segment_buffer.clear();
-                            vad_state.is_speaking = false;
-                            speech_ended = true;
+                            vad_state.max_exceeded = true;
                         }
                     }
                 } else {
@@ -814,7 +937,17 @@ impl AecInputBridge {
                         vad_state.audio_segment_buffer.extend(&all_audio);
                         vad_state.silence_count += num_chunks;
 
-                        if vad_state.silence_count >= vad_state.speech_end_threshold {
+                        // When max exceeded, cut on any silence (threshold=1 frame)
+                        // Also hard-cut at 1.5x max as absolute safety ceiling
+                        let effective_threshold = if vad_state.max_exceeded {
+                            1 // Cut on first silent frame after max exceeded
+                        } else {
+                            vad_state.speech_end_threshold
+                        };
+                        let hard_ceiling = vad_state.max_segment_size + (vad_state.max_segment_size / 2);
+                        let force_cut = vad_state.audio_segment_buffer.len() >= hard_ceiling;
+
+                        if vad_state.silence_count >= effective_threshold || force_cut {
                             // Speech ended
                             if vad_state.audio_segment_buffer.len() >= vad_state.min_segment_size {
                                 audio_segment = Some(vad_state.audio_segment_buffer.clone());
@@ -823,14 +956,27 @@ impl AecInputBridge {
                             vad_state.audio_segment_buffer.clear();
                             vad_state.is_speaking = false;
                             vad_state.silence_count = 0;
+                            vad_state.max_exceeded = false;
                             vad_state.speech_buffer.clear();
                             speech_ended = true;
                             vad_state.last_speech_end_time = Some(Instant::now());
                             vad_state.question_end_sent = false;
+                            vad_state.endpointer.record_speech_end();
 
+                            let seg_duration_ms = audio_segment.as_ref().map(|s| s.len() as f64 / 16.0).unwrap_or(0.0); // 16kHz → ms
+                            let current_threshold = vad_state.endpointer.current_threshold_ms(vad_state.question_end_silence_ms);
                             info!(
-                                "Speech ended (question_id={})",
-                                vad_state.current_question_id
+                                "Speech ended: segment={:.0}ms, adaptive_threshold={:.0}ms (question_id={})",
+                                seg_duration_ms, current_threshold, vad_state.current_question_id
+                            );
+                            let _ = Self::send_log(
+                                &mut node,
+                                &node_id,
+                                "INFO",
+                                &format!(
+                                    "🎤 Speech ended: segment={:.0}ms, next_threshold={:.0}ms, question_id={}",
+                                    seg_duration_ms, current_threshold, vad_state.current_question_id
+                                ),
                             );
                         }
                     } else {

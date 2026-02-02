@@ -1,0 +1,44 @@
+# Simple Unit Test Dataflow for dora-asr-mlx (Paraformer)
+#
+# This is a minimal dataflow for testing the ASR node in isolation.
+# Uses a Python node to load and send audio from a WAV file.
+#
+# Usage:
+#   cd node-hub/dora-asr-mlx/dataflow
+#   dora up
+#   dora build test-asr-mlx.yml
+#   dora start test-asr-mlx.yml
+#
+# Requirements:
+#   - Paraformer model at ~/.mofa/models/paraformer-large-mlx
+#   - Test audio file (16kHz WAV) - set TEST_AUDIO_FILE env var
+
+nodes:
+  # Audio file source - reads WAV file and sends as audio chunks
+  - id: audio-source
+    build: pip install scipy numpy pyarrow
+    path: audio_source.py
+    inputs:
+      tick: dora/timer/millis/100
+    outputs:
+      - audio
+    env:
+      TEST_AUDIO_FILE: ${TEST_AUDIO_FILE:-../test_audio.wav}
+
+  # MLX ASR Node (Paraformer)
+  - id: asr-mlx
+    build: cargo build --release --manifest-path ../Cargo.toml
+    path: ../target/release/dora-asr-mlx
+    inputs:
+      audio: audio-source/audio
+    outputs:
+      - transcription
+      - language_detected
+      - processing_time
+      - log
+    env:
+      PARAFORMER_MODEL_DIR: ${PARAFORMER_MODEL_DIR:-$HOME/.mofa/models/paraformer-large-mlx}
+      MIN_AUDIO_DURATION: "0.5"
+      MAX_AUDIO_DURATION: "30.0"
+      ASR_MLX_WARMUP: "true"
+      LOG_LEVEL: "DEBUG"

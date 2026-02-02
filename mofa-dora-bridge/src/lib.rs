@@ -143,6 +143,14 @@ pub enum MofaNodeType {
     ChatViewer,
     /// Participant panel widget - receives audio and calculates levels for visualization
     ParticipantPanel,
+    /// Chat output widget - receives ASR/LLM text output and displays in chat
+    ChatOutput,
+    /// ASR Paraformer engine - dynamic bridge for funasr-mlx
+    AsrParaformer,
+    /// ASR SenseVoice engine - dynamic bridge for funasr-nano-mlx
+    AsrSenseVoice,
+    /// ASR StepAudio2 engine - dynamic bridge for step-audio2-mlx
+    AsrStepAudio2,
 }
 
 impl MofaNodeType {
@@ -155,6 +163,10 @@ impl MofaNodeType {
             MofaNodeType::MicInput => "mofa-mic-input",
             MofaNodeType::ChatViewer => "mofa-chat-viewer",
             MofaNodeType::ParticipantPanel => "mofa-participant-panel",
+            MofaNodeType::ChatOutput => "mofa-chat-output",
+            MofaNodeType::AsrParaformer => "mofa-asr-paraformer",
+            MofaNodeType::AsrSenseVoice => "mofa-asr-sensevoice",
+            MofaNodeType::AsrStepAudio2 => "mofa-asr-stepaudio2",
         }
     }
 
@@ -167,6 +179,10 @@ impl MofaNodeType {
             "mofa-mic-input" => Some(MofaNodeType::MicInput),
             "mofa-chat-viewer" => Some(MofaNodeType::ChatViewer),
             "mofa-participant-panel" => Some(MofaNodeType::ParticipantPanel),
+            "mofa-chat-output" => Some(MofaNodeType::ChatOutput),
+            "mofa-asr-paraformer" => Some(MofaNodeType::AsrParaformer),
+            "mofa-asr-sensevoice" => Some(MofaNodeType::AsrSenseVoice),
+            "mofa-asr-stepaudio2" => Some(MofaNodeType::AsrStepAudio2),
             _ => None,
         }
     }
