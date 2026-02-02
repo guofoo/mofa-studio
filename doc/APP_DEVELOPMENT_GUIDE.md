@@ -409,14 +409,29 @@ impl MyAppScreenRef {
 }
 ```
 
-### Shell Integration
+### Shell Integration (CRITICAL)
 
-The shell calls `update_dark_mode` on your screen when the theme toggles:
+**You MUST register your app's dark mode update in the shell.** Without this, your app won't respond to theme changes.
 
+Edit `mofa-studio-shell/src/app.rs`:
+
+1. **Import the WidgetRefExt trait:**
 ```rust
-// In shell's apply_dark_mode_screens
-self.ui.my_app_screen(ids!(my_app_page)).update_dark_mode(cx, dark_mode);
+use mofa_myapp::{MoFaMyApp, MyAppScreenWidgetRefExt};
 ```
+
+2. **Add to `apply_dark_mode_screens_with_value()`:**
+```rust
+fn apply_dark_mode_screens_with_value(&mut self, cx: &mut Cx, dm: f64) {
+    // Existing screens...
+    self.ui.mo_fa_fmscreen(ids!(...fm_page)).update_dark_mode(cx, dm);
+
+    // ADD YOUR APP HERE - this is required!
+    self.ui.my_app_screen(ids!(...my_app_page)).update_dark_mode(cx, dm);
+}
+```
+
+**Common mistake:** Forgetting to add this line means your app's dark mode shaders are defined but never receive the `dark_mode` value updates.
 
 ### Important: vec4 in apply_over
 
@@ -448,6 +463,19 @@ Before submitting your app:
 - [ ] Implements `MofaApp` trait with valid `info()` and `live_design()`
 - [ ] Exports main screen widget for shell's `live_design!` macro
 
+**mofa-ui (Mandatory):**
+- [ ] Uses `mofa-ui` dependency for shared widgets (MofaHero, AudioManager, LedMeter, etc.)
+- [ ] MofaHeroAction uses `find_widget_action_cast` scoped by `widget_uid()` — NEVER global cast
+- [ ] Calls `set_running(cx, true/false)` on start, stop, DataflowStopped, and Error
+- [ ] Audio capture is serialized: stop CPAL mic monitoring before AEC start, restart on stop
+
+**moly-kit Chat UI (if applicable):**
+- [ ] Registers `moly_kit::widgets::live_design(cx)` BEFORE screen registration
+- [ ] Uses `BotId::new("name", "provider")` — NEVER `BotId::default()`
+- [ ] ChatController initialized in `draw_walk` (before first render)
+- [ ] Mutex guard dropped before any UI calls (`redraw`, `instant_scroll_to_bottom`)
+- [ ] Uses `ids!()` not `id!()` for Messages widget access
+
 **Theme & Dark Mode:**
 - [ ] Uses shared theme (no local font/color definitions)
 - [ ] Widgets have `instance dark_mode: 0.0` for themeable elements
@@ -464,8 +492,215 @@ Before submitting your app:
 - [ ] Registered in shell's `LiveHook::after_new_from_doc`
 - [ ] Registered in shell's `LiveRegister::live_register`
 - [ ] Widget type imported in shell's `live_design!` macro
-- [ ] Shell calls `update_dark_mode()` on theme toggle
+- [ ] **WidgetRefExt trait imported** in shell (e.g., `use mofa_myapp::MyAppScreenWidgetRefExt`)
+- [ ] **Added to `apply_dark_mode_screens_with_value()`** in shell's app.rs
 - [ ] `cargo build` passes with no errors
+
+---
+
+## Mandatory: mofa-ui Shared Components
+
+All apps MUST use `mofa-ui` for shared UI infrastructure. Do NOT reimplement these locally.
+
+### Required Dependency
+
+```toml
+# Cargo.toml
+[dependencies]
+mofa-ui = { path = "../../mofa-ui" }
+```
+
+### Required Imports
+
+```rust
+// MofaHero (start/stop button with connection status)
+use mofa_ui::{MofaHeroWidgetExt, MofaHeroAction, ConnectionStatus};
+
+// Audio infrastructure
+use mofa_ui::{AudioManager, AudioDeviceInfo};
+use mofa_ui::{LedMeterWidgetExt, MicButtonWidgetExt, AecButtonWidgetExt};
+```
+
+### MofaHero Action Handling (CRITICAL)
+
+**NEVER** use global action cast. Every app in the shell shares the same event loop. Using `action.as_widget_action().cast()` matches MofaHeroAction from ALL MofaHero widgets globally — clicking Start on one app triggers all apps.
+
+```rust
+// ❌ BAD — matches ANY MofaHero in the entire shell
+for action in actions {
+    match action.as_widget_action().cast() {
+        MofaHeroAction::StartClicked => { /* ALL apps fire */ }
+    }
+}
+
+// ✅ GOOD — scoped to this screen's own hero widget
+let hero_uid = self.view.mofa_hero(ids!(left_column.mofa_hero)).widget_uid();
+match actions.find_widget_action_cast::<MofaHeroAction>(hero_uid) {
+    MofaHeroAction::StartClicked => { /* only THIS app fires */ }
+    MofaHeroAction::StopClicked => { /* ... */ }
+    MofaHeroAction::None => {}
+}
+```
+
+### MofaHero State Management
+
+You MUST call `set_running()` to toggle the button visual state:
+
+```rust
+fn handle_start(&mut self, cx: &mut Cx) {
+    self.view.mofa_hero(ids!(left_column.mofa_hero)).set_running(cx, true);
+    self.view.mofa_hero(ids!(left_column.mofa_hero)).set_connection_status(cx, ConnectionStatus::Connecting);
+    // ... start dataflow
+}
+
+fn handle_stop(&mut self, cx: &mut Cx) {
+    self.view.mofa_hero(ids!(left_column.mofa_hero)).set_running(cx, false);
+    self.view.mofa_hero(ids!(left_column.mofa_hero)).set_connection_status(cx, ConnectionStatus::Stopping);
+    // ... stop dataflow
+}
+```
+
+Also update on `DataflowStopped` and `Error` events — always set `set_running(cx, false)`.
+
+### Audio: Dual Capture Prevention
+
+macOS does not reliably support two concurrent audio input streams. If your app uses both CPAL mic monitoring (for UI level meters) and AEC capture (for Dora pipeline), you MUST serialize them:
+
+```rust
+DoraEvent::DataflowStarted { .. } => {
+    // Stop CPAL mic monitoring BEFORE starting AEC capture
+    if let Some(ref mut manager) = self.audio_manager {
+        manager.stop_mic_monitoring();
+    }
+    if let Some(ref dora) = self.dora_integration {
+        dora.set_aec_enabled(true);
+        dora.start_recording();
+    }
+}
+
+DoraEvent::DataflowStopped => {
+    // Restart CPAL mic monitoring after AEC stops
+    if let Some(ref mut manager) = self.audio_manager {
+        let _ = manager.start_mic_monitoring(None);
+    }
+}
+```
+
+---
+
+## Using moly-kit Chat UI
+
+For chat/message display, use moly-kit's `Messages` widget with `ChatController`.
+
+### Setup
+
+```toml
+# Cargo.toml
+[dependencies]
+moly-kit = { git = "https://github.com/moxin-org/moly", branch = "main" }
+```
+
+```rust
+// lib.rs — register moly-kit widgets BEFORE your screen
+fn live_design(cx: &mut Cx) {
+    moly_kit::widgets::live_design(cx);
+    screen::live_design(cx);
+}
+```
+
+```rust
+// design.rs — use Messages widget
+live_design! {
+    use moly_kit::widgets::messages::Messages;
+
+    pub MyScreen = {{MyScreen}} {
+        chat_messages = <Messages> { width: Fill, height: Fill }
+    }
+}
+```
+
+### ChatController Pattern
+
+```rust
+use std::sync::{Arc, Mutex};
+use moly_kit::prelude::*;
+
+#[derive(Live, LiveHook, Widget)]
+pub struct MyScreen {
+    #[deref] view: View,
+    #[rust] chat_controller: Option<Arc<Mutex<ChatController>>>,
+    #[rust] last_chat_count: usize,
+}
+```
+
+### BotId: NEVER use Default (CRITICAL)
+
+`BotId::default()` creates an empty string that **panics** inside moly-kit's `draw_list` when it tries to parse the bot id format (`<len>;<id>@<provider>`). This panic occurs in a macOS `extern "C"` timer callback and causes an unrecoverable abort.
+
+```rust
+// ❌ CRASH — BotId::default() is empty string "", panics in draw_list
+EntityId::Bot(BotId::default())
+
+// ✅ CORRECT — properly formatted bot id
+EntityId::Bot(BotId::new("asr", "local"))
+EntityId::Bot(BotId::new("tutor", "local"))
+```
+
+### Initialize ChatController in draw_walk
+
+The Messages widget panics if `chat_controller` is `None` during draw. Initialize it in `draw_walk` to guarantee it's set before the first render:
+
+```rust
+fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+    if self.chat_controller.is_none() {
+        let controller = ChatController::new_arc();
+        self.chat_controller = Some(controller.clone());
+        self.view.messages(ids!(chat_messages)).write().chat_controller = Some(controller);
+    }
+    self.view.draw_walk(cx, scope, walk)
+}
+```
+
+### Syncing Messages from Dora State
+
+```rust
+fn sync_chat_from_dora(&mut self, cx: &mut Cx, messages: Vec<ChatMessage>) {
+    let controller = self.chat_controller.clone().unwrap();
+
+    // Lock, update, drop — BEFORE any UI calls
+    let count = {
+        let mut guard = controller.lock().expect("ChatController mutex poisoned");
+        let state = guard.dangerous_state_mut();
+        state.messages.clear();
+        for msg in &messages {
+            let entity = match msg.role {
+                MessageRole::User => EntityId::User,
+                _ => EntityId::Bot(BotId::new("asr", "local")), // NEVER BotId::default()
+            };
+            state.messages.push(Message {
+                from: entity,
+                content: MessageContent { text: msg.content.clone(), ..Default::default() },
+                ..Default::default()
+            });
+        }
+        state.messages.len()
+    }; // guard dropped here
+
+    if count > self.last_chat_count {
+        self.last_chat_count = count;
+        self.view.messages(ids!(chat_messages)).write().instant_scroll_to_bottom(cx);
+    }
+    self.view.redraw(cx);
+}
+```
+
+### Mutex Safety Rules
+
+The `ChatController` mutex is shared between timer callbacks (write) and draw passes (read). On macOS, timer callbacks are `extern "C"` and **cannot unwind** — any panic is a fatal abort.
+
+1. **Always drop the lock before calling UI methods** (`redraw`, `instant_scroll_to_bottom`) — these can trigger draws that re-lock
+2. **Use `ids!()` not `id!()`** for Messages widget access — `messages()` takes `&[LiveId]`
+3. **Use `instant_scroll_to_bottom`** not `animated_scroll_to_bottom` — animated triggers intermediate redraws
 
 ---
 
@@ -473,7 +708,9 @@ Before submitting your app:
 
 | App | Description | Features |
 |-----|-------------|----------|
-| `mofa-fm` | Audio streaming | Timer management, shader animations |
+| `mofa-fm` | Audio streaming | Timer management, shader animations, Dora integration |
+| `mofa-asr` | Speech recognition | moly-kit chat UI, AEC capture, dual capture prevention |
+| `mofa-debate` | Multi-agent debate | Audio playback, multiple participants |
 | `mofa-settings` | Provider config | Modal dialogs, form inputs, state management |
 
 ---
@@ -500,10 +737,45 @@ use mofa_widgets::{MofaApp, AppInfo};  // Both needed
 
 Implement timer control and ensure shell calls `stop_timers()` on visibility change.
 
+### Clicking Start triggers multiple apps
+
+You're using global action cast. Use `find_widget_action_cast` scoped to your widget's `widget_uid()`. See "MofaHero Action Handling" above.
+
+### Fatal crash (abort) in macOS timer callback
+
+Any panic inside a timer callback is fatal on macOS (`extern "C"` cannot unwind). Common causes:
+- `BotId::default()` — use `BotId::new("id", "provider")` instead
+- `expect("no chat controller set")` — initialize ChatController in `draw_walk`
+- Mutex locked during UI call that triggers redraw — drop guard before UI calls
+
+To debug: add a panic hook in `main()` to capture the real panic message:
+```rust
+std::panic::set_hook(Box::new(|info| {
+    eprintln!("=== PANIC: {} ===", info);
+    eprintln!("{}", std::backtrace::Backtrace::force_capture());
+}));
+```
+
+### AEC not receiving audio / mic not working
+
+Ensure you call `set_aec_enabled(true)` and `start_recording()` on `DataflowStarted`. Also check for dual capture — stop CPAL mic monitoring before AEC starts.
+
+### Start/Stop button doesn't toggle visually
+
+Missing `set_running(cx, true/false)` calls. Must be called in handle_start, handle_stop, DataflowStopped, and Error handlers.
+
 ### Fonts/colors don't match other apps
 
 Use `mofa_widgets::theme::*` instead of defining locally.
 
+### Dark mode doesn't work on my app
+
+Check these in order:
+1. **Shaders have `instance dark_mode: 0.0`** - Each drawable element needs this
+2. **Screen has `update_dark_mode()` method** - Must be implemented on the Ref type
+3. **WidgetRefExt trait is imported in shell** - `use mofa_myapp::MyAppScreenWidgetRefExt;`
+4. **Screen is registered in `apply_dark_mode_screens_with_value()`** - This is the most common miss!
+
 ---
 
-*Last Updated: 2026-01-04*
+*Last Updated: 2026-01-27*
