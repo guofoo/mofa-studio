@@ -1,5 +1,5 @@
 nodes:
-  # Text source - sends test sentences one at a time
+  # Text source - sends 10 test sentences one at a time
   - id: text-source
     build: pip install pyarrow dora-rs
     path: text_source.py
@@ -10,6 +10,7 @@ nodes:
 
   # GPT-SoVITS MLX TTS node
   - id: gpt-sovits-tts
+    build: cargo build --release --manifest-path ../Cargo.toml
     path: ../target/release/dora-gpt-sovits-mlx
     inputs:
       text: text-source/text
@@ -26,9 +27,9 @@ nodes:
       TEMPERATURE: "1.0"
       RUST_LOG: info
 
-  # Audio sink - saves or plays output audio
+  # Audio sink - saves output audio and prints summary
   - id: audio-sink
-    build: pip install pyarrow dora-rs scipy numpy
+    build: pip install pyarrow dora-rs numpy
     path: audio_sink.py
     inputs:
       audio: gpt-sovits-tts/audio

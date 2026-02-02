@@ -121,98 +121,150 @@ nodes:
       AUDIO_BUFFER_LOW_WATER_MARK: "30"
       AUDIO_BUFFER_HIGH_WATER_MARK: "60"
 
-  # PrimeSpeech TTS for Student1 (Zhao Daniu - Male, Rational Voice)
+  # GPT-SoVITS MLX TTS for Student1 (Zhao Daniu - Male, Rational Voice)
   - id: primespeech-student1
-    build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
-    path: dora-primespeech
+    build: cargo build --release --manifest-path ../../../node-hub/dora-gpt-sovits-mlx/Cargo.toml
+    path: ../../../node-hub/dora-gpt-sovits-mlx/target/release/dora-gpt-sovits-mlx
     inputs:
       text: multi-text-segmenter/text_segment_student1
     outputs:
       - audio
-      - status
       - segment_complete
       - log
     env:
-      TRANSFORMERS_OFFLINE: "1"
-      HF_HUB_OFFLINE: "1"
-      VOICE_NAME: "Zhao Daniu"
-      PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
-      TEXT_LANG: zh
-      PROMPT_LANG: zh
-      TOP_K: 5
-      TOP_P: 1.0
-      TEMPERATURE: 1.0
-      SPEED_FACTOR: 1.1
-      FRAGMENT_INTERVAL: "0.2"
-      USE_GPU: false
-      NUM_THREADS: 4
-      RETURN_FRAGMENT: "false"
-      LOG_LEVEL: DEBUG
-      ENABLE_INTERNAL_SEGMENTATION: "true"
-      TTS_MAX_SEGMENT_LENGTH: "100"
-      TTS_MIN_SEGMENT_LENGTH: "20"
+      VOICE_CHARACTER: "dnz"
+      GPT_SOVITS_MODEL_DIR: $HOME/.dora/models/primespeech/gpt-sovits-mlx
+      TOP_K: "5"
+      TEMPERATURE: "1.0"
+      RUST_LOG: info
 
-  # PrimeSpeech TTS for Student2 (Chen Yifan - Female, Emotional Voice)
+  # GPT-SoVITS MLX TTS for Student2 (Chen Yifan - Female, Emotional Voice)
   - id: primespeech-student2
-    build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
-    path: dora-primespeech
+    build: cargo build --release --manifest-path ../../../node-hub/dora-gpt-sovits-mlx/Cargo.toml
+    path: ../../../node-hub/dora-gpt-sovits-mlx/target/release/dora-gpt-sovits-mlx
     inputs:
       text: multi-text-segmenter/text_segment_student2
     outputs:
       - audio
-      - status
       - segment_complete
       - log
     env:
-      TRANSFORMERS_OFFLINE: "1"
-      HF_HUB_OFFLINE: "1"
-      VOICE_NAME: "Doubao"
-      PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
-      TEXT_LANG: zh
-      PROMPT_LANG: zh
-      TOP_K: 5
-      TOP_P: 1.0
-      TEMPERATURE: 1.0
-      SPEED_FACTOR: 1.1
-      FRAGMENT_INTERVAL: "0.2"
-      USE_GPU: false
-      NUM_THREADS: 4
-      RETURN_FRAGMENT: "false"
-      LOG_LEVEL: DEBUG
-      ENABLE_INTERNAL_SEGMENTATION: "true"
-      TTS_MAX_SEGMENT_LENGTH: "100"
-      TTS_MIN_SEGMENT_LENGTH: "20"
+      VOICE_CHARACTER: yfc
+      GPT_SOVITS_MODEL_DIR: $HOME/.dora/models/primespeech/gpt-sovits-mlx
+      TOP_K: "5"
+      TEMPERATURE: "1.0"
+      RUST_LOG: info
 
-  # PrimeSpeech TTS for Tutor (Luo Xiang - Male, Authoritative Voice)
+  # GPT-SoVITS MLX TTS for Tutor (Luo Xiang - Male, Authoritative Voice)
   - id: primespeech-tutor
-    build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
-    path: dora-primespeech
+    build: cargo build --release --manifest-path ../../../node-hub/dora-gpt-sovits-mlx/Cargo.toml
+    path: ../../../node-hub/dora-gpt-sovits-mlx/target/release/dora-gpt-sovits-mlx
     inputs:
       text: multi-text-segmenter/text_segment_tutor
     outputs:
       - audio
-      - status
       - segment_complete
       - log
     env:
-      TRANSFORMERS_OFFLINE: "1"
-      HF_HUB_OFFLINE: "1"
-      VOICE_NAME: "Ma Yun"
-      PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
-      TEXT_LANG: zh
-      PROMPT_LANG: zh
-      TOP_K: 5
-      TOP_P: 1.0
-      TEMPERATURE: 1.0
-      SPEED_FACTOR: 1.1
-      FRAGMENT_INTERVAL: "0.1"
-      USE_GPU: false
-      NUM_THREADS: 4
-      RETURN_FRAGMENT: "false"
-      LOG_LEVEL: DEBUG
-      ENABLE_INTERNAL_SEGMENTATION: "true"
-      TTS_MAX_SEGMENT_LENGTH: "100"
-      TTS_MIN_SEGMENT_LENGTH: "20"
+      VOICE_CHARACTER: luoxiang
+      GPT_SOVITS_MODEL_DIR: $HOME/.dora/models/primespeech/gpt-sovits-mlx
+      TOP_K: "5"
+      TEMPERATURE: "1.0"
+      RUST_LOG: info
+
+  # ============ COMMENTED OUT: Original PrimeSpeech TTS nodes ============
+  # # PrimeSpeech TTS for Student1 (Zhao Daniu - Male, Rational Voice)
+  # - id: primespeech-student1
+  #   build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
+  #   path: dora-primespeech
+  #   inputs:
+  #     text: multi-text-segmenter/text_segment_student1
+  #   outputs:
+  #     - audio
+  #     - status
+  #     - segment_complete
+  #     - log
+  #   env:
+  #     TRANSFORMERS_OFFLINE: "1"
+  #     HF_HUB_OFFLINE: "1"
+  #     VOICE_NAME: "Zhao Daniu"
+  #     PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
+  #     TEXT_LANG: zh
+  #     PROMPT_LANG: zh
+  #     TOP_K: 5
+  #     TOP_P: 1.0
+  #     TEMPERATURE: 1.0
+  #     SPEED_FACTOR: 1.1
+  #     FRAGMENT_INTERVAL: "0.2"
+  #     USE_GPU: false
+  #     NUM_THREADS: 4
+  #     RETURN_FRAGMENT: "false"
+  #     LOG_LEVEL: DEBUG
+  #     ENABLE_INTERNAL_SEGMENTATION: "true"
+  #     TTS_MAX_SEGMENT_LENGTH: "100"
+  #     TTS_MIN_SEGMENT_LENGTH: "20"
+  #
+  # # PrimeSpeech TTS for Student2 (Chen Yifan - Female, Emotional Voice)
+  # - id: primespeech-student2
+  #   build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
+  #   path: dora-primespeech
+  #   inputs:
+  #     text: multi-text-segmenter/text_segment_student2
+  #   outputs:
+  #     - audio
+  #     - status
+  #     - segment_complete
+  #     - log
+  #   env:
+  #     TRANSFORMERS_OFFLINE: "1"
+  #     HF_HUB_OFFLINE: "1"
+  #     VOICE_NAME: "Doubao"
+  #     PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
+  #     TEXT_LANG: zh
+  #     PROMPT_LANG: zh
+  #     TOP_K: 5
+  #     TOP_P: 1.0
+  #     TEMPERATURE: 1.0
+  #     SPEED_FACTOR: 1.1
+  #     FRAGMENT_INTERVAL: "0.2"
+  #     USE_GPU: false
+  #     NUM_THREADS: 4
+  #     RETURN_FRAGMENT: "false"
+  #     LOG_LEVEL: DEBUG
+  #     ENABLE_INTERNAL_SEGMENTATION: "true"
+  #     TTS_MAX_SEGMENT_LENGTH: "100"
+  #     TTS_MIN_SEGMENT_LENGTH: "20"
+  #
+  # # PrimeSpeech TTS for Tutor (Luo Xiang - Male, Authoritative Voice)
+  # - id: primespeech-tutor
+  #   build: pip install -e ../../../libs/dora-common -e ../../../node-hub/dora-primespeech
+  #   path: dora-primespeech
+  #   inputs:
+  #     text: multi-text-segmenter/text_segment_tutor
+  #   outputs:
+  #     - audio
+  #     - status
+  #     - segment_complete
+  #     - log
+  #   env:
+  #     TRANSFORMERS_OFFLINE: "1"
+  #     HF_HUB_OFFLINE: "1"
+  #     VOICE_NAME: "Ma Yun"
+  #     PRIMESPEECH_MODEL_DIR: $HOME/.dora/models/primespeech
+  #     TEXT_LANG: zh
+  #     PROMPT_LANG: zh
+  #     TOP_K: 5
+  #     TOP_P: 1.0
+  #     TEMPERATURE: 1.0
+  #     SPEED_FACTOR: 1.1
+  #     FRAGMENT_INTERVAL: "0.1"
+  #     USE_GPU: false
+  #     NUM_THREADS: 4
+  #     RETURN_FRAGMENT: "false"
+  #     LOG_LEVEL: DEBUG
+  #     ENABLE_INTERNAL_SEGMENTATION: "true"
+  #     TTS_MAX_SEGMENT_LENGTH: "100"
+  #     TTS_MIN_SEGMENT_LENGTH: "20"
 
   # ============ 3 Conference Bridges (Switch) ============
 
@@ -363,21 +415,24 @@ nodes:
       - status
       - log
 
-  # ASR for Human Speech
+  # ASR for Human Speech (MLX-based FunASR-Nano SenseVoice+Qwen)
   - id: asr
-    build: pip install -e ../../../node-hub/dora-asr
-    path: dora-asr
+    build: cargo build --release --manifest-path ../../../node-hub/dora-funasr-nano-mlx/Cargo.toml
+    path: ../../../node-hub/dora-funasr-nano-mlx/target/release/dora-funasr-nano-mlx
     inputs:
       audio: mofa-mic-input/audio_segment  # Gets question_id from mofa-mic-input
     outputs:
       - transcription  # Passes question_id + adds session_status="ended"
-      - status
+      - language_detected
+      - processing_time
       - log
     env:
-      USE_GPU: "true"
-      ASR_ENGINE: "funasr"
-      LANGUAGE: "zh"
-      LOG_LEVEL: "INFO"
+      SENSEVOICE_MODEL_DIR: ${SENSEVOICE_MODEL_DIR:-$HOME/.mofa/models/Fun-ASR-Nano-2512}
+      ASR_NANO_LANGUAGE: ${ASR_NANO_LANGUAGE:-auto}
+      MIN_AUDIO_DURATION: ${MIN_AUDIO_DURATION:-0.1}
+      MAX_AUDIO_DURATION: ${MAX_AUDIO_DURATION:-60.0}
+      ASR_MLX_WARMUP: ${ASR_MLX_WARMUP:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
   # Audio Player - receives synthesized audio and plays through speaker
   - id: mofa-audio-player
@@ -428,7 +483,6 @@ nodes:
       human_text:
         source: asr/transcription
         queue_size: 1000
-      human_status: asr/status
     outputs:
       - control
 
@@ -503,15 +557,15 @@ nodes:
       tts1_log:
         source: primespeech-student1/log
         queue_size: 1000
-      tts1_status: primespeech-student1/status
+      # tts1_status: primespeech-student1/status  # gpt-sovits-mlx doesn't have status output
       tts2_log:
         source: primespeech-student2/log
         queue_size: 1000
-      tts2_status: primespeech-student2/status
+      # tts2_status: primespeech-student2/status  # gpt-sovits-mlx doesn't have status output
       tts3_log:
         source: primespeech-tutor/log
         queue_size: 1000
-      tts3_status: primespeech-tutor/status
+      # tts3_status: primespeech-tutor/status  # gpt-sovits-mlx doesn't have status output
       audio_status: mofa-audio-player/status
       audio_player_log:
         source: mofa-audio-player/log
@@ -525,7 +579,6 @@ nodes:
       asr_log:
         source: asr/log
         queue_size: 1000
-      asr_status: asr/status
       human_text:
         source: asr/transcription
         queue_size: 1000

@@ -1,16 +1,46 @@
 //! Role configuration handling - load and save TOML config files
 //!
-//! Also supports updating VOICE_NAME in YAML dataflow files.
+//! Also supports updating VOICE_CHARACTER/VOICE_NAME in YAML dataflow files.
 
 use regex::Regex;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// Available PrimeSpeech voices
+/// Available voice display names (shown in UI)
 pub const VOICE_OPTIONS: &[&str] = &[
     "Zhao Daniu", "Chen Yifan", "Luo Xiang", "Doubao", "Yang Mi",
-    "Ma Yun", "Maple", "Cove", "Ellen", "Juniper",
+    "Ma Yun", "BYS", "Marc",
 ];
+
+/// Map display name → VOICE_CHARACTER ID (used in voices.json / YAML env)
+pub fn voice_display_to_id(display_name: &str) -> &str {
+    match display_name {
+        "Zhao Daniu" => "dnz",
+        "Chen Yifan" => "yfc",
+        "Luo Xiang" => "luoxiang",
+        "Doubao" => "doubao",
+        "Yang Mi" => "yangmi",
+        "Ma Yun" => "mayun",
+        "BYS" => "bys",
+        "Marc" => "marc",
+        _ => "doubao",
+    }
+}
+
+/// Map VOICE_CHARACTER ID → display name (for UI)
+pub fn voice_id_to_display(id: &str) -> &str {
+    match id {
+        "dnz" | "daniu" | "zhaodaniu" => "Zhao Daniu",
+        "yfc" | "yifan" | "chenyifan" => "Chen Yifan",
+        "luoxiang" | "luo" => "Luo Xiang",
+        "doubao" | "default" => "Doubao",
+        "yangmi" | "yang" => "Yang Mi",
+        "mayun" | "ma" => "Ma Yun",
+        "bys" => "BYS",
+        "marc" | "fewshot" => "Marc",
+        _ => "Doubao",
+    }
+}
 
 /// Role configuration loaded from TOML file
 #[derive(Debug, Clone, Default)]
@@ -101,15 +131,15 @@ impl RoleConfig {
     }
 }
 
-/// Update VOICE_NAME in a YAML dataflow file for a specific role
+/// Update VOICE_CHARACTER in a YAML dataflow file for a specific role
 ///
-/// This finds the primespeech node for the role and updates its VOICE_NAME env variable.
+/// This finds the primespeech node for the role and updates its VOICE_CHARACTER env variable.
 /// Uses regex replacement to preserve YAML formatting and comments.
 ///
 /// # Arguments
 /// * `yaml_path` - Path to the YAML dataflow file
 /// * `role` - Role name (student1, student2, tutor)
-/// * `voice` - New voice name (e.g., "Zhao Daniu", "Chen Yifan")
+/// * `voice` - Voice display name (e.g., "Zhao Daniu") — converted to ID automatically
 ///
 /// # Returns
 /// * `Ok(true)` - Voice was updated
@@ -119,6 +149,9 @@ pub fn update_yaml_voice(yaml_path: &PathBuf, role: &str, voice: &str) -> Result
     let content = std::fs::read_to_string(yaml_path)
         .map_err(|e| format!("Failed to read YAML file: {}", e))?;
 
+    // Convert display name to voice character ID
+    let voice_id = voice_display_to_id(voice);
+
     // Map role to primespeech node id
     let node_id = match role {
         "student1" => "primespeech-student1",
@@ -126,18 +159,6 @@ pub fn update_yaml_voice(yaml_path: &PathBuf, role: &str, voice: &str) -> Result
         "tutor" => "primespeech-tutor",
         _ => return Err(format!("Unknown role: {}", role)),
     };
-
-    // Strategy: Find the node section, then update VOICE_NAME within it
-    //
-    // YAML structure:
-    //   - id: primespeech-student1
-    //     ...
-    //     env:
-    //       VOICE_NAME: "Zhao Daniu"
-    //
-    // We need to find the section starting with "- id: primespeech-XXX"
-    // and ending at the next "- id:" or end of nodes section,
-    // then replace VOICE_NAME within that section.
 
     // Find the node section boundaries
     let node_pattern = format!(r"(?m)^  - id: {}\s*$", regex::escape(node_id));
@@ -163,17 +184,22 @@ pub fn update_yaml_voice(yaml_path: &PathBuf, role: &str, voice: &str) -> Result
     // Extract the node section
     let node_section = &content[node_start..node_end];
 
-    // Replace VOICE_NAME in this section
-    // Match: VOICE_NAME: "..." or VOICE_NAME: '...' or VOICE_NAME: ...
-    let voice_re = Regex::new(r#"(?m)(^\s*VOICE_NAME:\s*)["']?[^"'\n]*["']?\s*$"#)
+    // Try VOICE_CHARACTER first (gpt-sovits-mlx), then fall back to VOICE_NAME (primespeech)
+    let vc_re = Regex::new(r#"(?m)(^\s*VOICE_CHARACTER:\s*)["']?[^"'\n]*["']?\s*$"#)
+        .map_err(|e| format!("Invalid regex: {}", e))?;
+    let vn_re = Regex::new(r#"(?m)(^\s*VOICE_NAME:\s*)["']?[^"'\n]*["']?\s*$"#)
         .map_err(|e| format!("Invalid regex: {}", e))?;
 
-    if !voice_re.is_match(node_section) {
-        return Err(format!("VOICE_NAME not found in {} section", node_id));
-    }
+    let (voice_re, value) = if vc_re.is_match(node_section) {
+        (vc_re, voice_id)
+    } else if vn_re.is_match(node_section) {
+        (vn_re, voice)
+    } else {
+        return Err(format!("VOICE_CHARACTER/VOICE_NAME not found in {} section", node_id));
+    };
 
     // Build replacement string: preserve prefix ($1) and add new quoted voice
-    let replacement = format!("$1\"{}\"", voice);
+    let replacement = format!("$1\"{}\"", value);
     let new_node_section = voice_re.replace(node_section, replacement.as_str());
 
     // Rebuild the full content
@@ -191,9 +217,11 @@ pub fn update_yaml_voice(yaml_path: &PathBuf, role: &str, voice: &str) -> Result
     Ok(true)
 }
 
-/// Read VOICE_NAME from a YAML dataflow file for a specific role
+/// Read voice setting from a YAML dataflow file for a specific role
 ///
-/// Returns the voice name if found, or None if not found.
+/// Tries VOICE_CHARACTER first (gpt-sovits-mlx format, returns ID converted to display name),
+/// then falls back to VOICE_NAME (primespeech format, returns display name as-is).
+/// Returns the voice display name if found, or None if not found.
 pub fn read_yaml_voice(yaml_path: &PathBuf, role: &str) -> Option<String> {
     let content = std::fs::read_to_string(yaml_path).ok()?;
 
@@ -221,9 +249,16 @@ pub fn read_yaml_voice(yaml_path: &PathBuf, role: &str) -> Option<String> {
     // Extract the node section
     let node_section = &content[node_start..node_end];
 
-    // Find VOICE_NAME value
-    let voice_re = Regex::new(r#"(?m)^\s*VOICE_NAME:\s*["']?([^"'\n]+)["']?\s*$"#).ok()?;
-    let caps = voice_re.captures(node_section)?;
+    // Try VOICE_CHARACTER first (gpt-sovits-mlx) — value is an ID, convert to display name
+    let vc_re = Regex::new(r#"(?m)^\s*VOICE_CHARACTER:\s*["']?([^"'\n]+)["']?\s*$"#).ok()?;
+    if let Some(caps) = vc_re.captures(node_section) {
+        let id = caps.get(1)?.as_str().trim();
+        return Some(voice_id_to_display(id).to_string());
+    }
+
+    // Fall back to VOICE_NAME (primespeech) — value is already a display name
+    let vn_re = Regex::new(r#"(?m)^\s*VOICE_NAME:\s*["']?([^"'\n]+)["']?\s*$"#).ok()?;
+    let caps = vn_re.captures(node_section)?;
     let voice = caps.get(1)?.as_str().trim().to_string();
 
     Some(voice)
