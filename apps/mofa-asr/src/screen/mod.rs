@@ -442,7 +442,7 @@ impl MoFaASRScreen {
             for msg in messages {
                 let entity = match msg.role {
                     mofa_dora_bridge::data::MessageRole::User => EntityId::User,
-                    _ => EntityId::Bot(BotId::new("asr", "local")),
+                    _ => EntityId::Bot(BotId::new("asr")),
                 };
                 state.messages.push(Message {
                     from: entity,
